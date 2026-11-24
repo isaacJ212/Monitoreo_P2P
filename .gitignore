@@ -1,0 +1,73 @@
+.# Entornos virtuales (Virtual Environments)
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Variables de entorno y secretos (¡Nunca subir a Git!)
+.env
+.env.*
+!.env.example
+
+# Archivos compilados y caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Empaquetado y distribución
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Pruebas, linters y cobertura (Pytest, Mypy, Ruff, Coverage)
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.cache
+
+# Bases de datos locales y logs
+*.db
+*.sqlite3
+*.sqlite3-journal
+*.log
+log.txt
+
+# Editores e IDEs (VS Code, PyCharm)
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
