@@ -14,8 +14,9 @@ from app.Database.database import Base, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
 from app.scheduler import run_monitoring_cycle, scheduler, start_scheduler
 from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse
+from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
-from app.Servicies.predictor import build_predictions
+from app.Servicies.predictor import build_predictions, get_historical_averages
 
 
 @asynccontextmanager
@@ -60,21 +61,28 @@ async def get_live_market(
     budget: float = Query(5000.0, gt=0),
     pay_type: str | None = None,
     only_merchants: bool = False,
+    db: Session = Depends(get_db),
 ):
-    
     fiat_code = fiat.upper()
+    asset_code = asset.upper()
     pay_types = [pay_type] if pay_type else []
-    buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset, budget, pay_types, only_merchants=only_merchants)
-    sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset, budget, pay_types, only_merchants=only_merchants)
+    buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset_code, budget, pay_types, only_merchants=only_merchants)
+    sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset_code, budget, pay_types, only_merchants=only_merchants)
+
+    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat_code, asset=asset_code)
+    avg_buy, avg_sell = get_historical_averages(db, fiat_code, asset_code)
 
     return LiveMarketResponse(
         fiat=fiat_code,
-        asset=asset.upper(),
+        asset=asset_code,
         checked_at=datetime.now(timezone.utc),
         best_buy=buy_ads[0] if buy_ads else None,
         best_sell=sell_ads[0] if sell_ads else None,
         buy_ads=buy_ads[:10],
         sell_ads=sell_ads[:10],
+        arbitrage_match=arbitrage_match,
+        historical_avg_buy=avg_buy,
+        historical_avg_sell=avg_sell,
     )
 
 

@@ -15,6 +15,34 @@ class AdDetail(BaseModel):
     month_orders: int
     finish_rate_pct: float
     is_verified_merchant: bool
+    link: str = ""
+
+
+class ArbitrageMatch(BaseModel):
+    buy_merchant: str
+    buy_price: float
+    buy_min_limit: float
+    buy_max_limit: float
+    buy_payment_methods: list[str]
+    buy_link: str
+
+    sell_merchant: str
+    sell_price: float
+    sell_min_limit: float
+    sell_max_limit: float
+    sell_payment_methods: list[str]
+    sell_link: str
+
+    gross_spread: float
+    spread_pct: float
+    simulated_budget: float
+    usdt_obtained: float
+    fiat_returned: float
+    net_profit_fiat: float
+    net_profit_pct: float
+    is_profitable: bool
+    common_payment_methods: list[str]
+    recommendation: str
 
 
 class LiveMarketResponse(BaseModel):
@@ -25,6 +53,9 @@ class LiveMarketResponse(BaseModel):
     best_sell: AdDetail | None
     buy_ads: list[AdDetail]
     sell_ads: list[AdDetail]
+    arbitrage_match: ArbitrageMatch | None = None
+    historical_avg_buy: float | None = None
+    historical_avg_sell: float | None = None
 
 
 class PredictionSide(BaseModel):
@@ -48,6 +79,16 @@ class HourlyPattern(BaseModel):
     sample_count: int = 0
 
 
+class ArbitrageWindow(BaseModel):
+    best_buy_hour: str
+    avg_buy_price: float
+    best_sell_hour: str
+    avg_sell_price: float
+    expected_spread: float
+    expected_roi_pct: float
+    insight: str
+
+
 class PaymentMethodStat(BaseModel):
     method: str
     frequency: int
@@ -58,6 +99,7 @@ class PaymentMethodStat(BaseModel):
 class TimePatternAnalysis(BaseModel):
     best_hours_to_buy: list[str] = []   # Ej: ["08:00 AM", "09:00 AM"]
     best_hours_to_sell: list[str] = []  # Ej: ["06:00 PM", "07:00 PM"]
+    best_arbitrage_window: ArbitrageWindow | None = None
     hourly_patterns: list[HourlyPattern] = []
     popular_payment_methods: list[PaymentMethodStat] = []
     overall_avg_min_limit: float = 0.0
@@ -72,6 +114,8 @@ class PredictionResponse(BaseModel):
     sell_analysis: PredictionSide
     historical_min_buy: float | None = None
     historical_max_sell: float | None = None
+    historical_avg_buy: float | None = None
+    historical_avg_sell: float | None = None
     time_patterns: TimePatternAnalysis | None = None
 
 

@@ -1,19 +1,19 @@
 import json
-#from sched import scheduler
-import numpy as np 
+import numpy as np
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.config.Config import FIAT_RULES, settings
 from app.Database.database import SessionLocal
 from app.Models.models import MarketSnapshot
+from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
-from app.Servicies.notifier import dispatch_alert
-from app.Servicies.predictor import build_predictions
-
+from app.Servicies.notifier import dispatch_alert, dispatch_arbitrage_alert
+from app.Servicies.predictor import build_predictions, get_historical_averages
 
 
 scheduler = AsyncIOScheduler()
 
-async def run_monitoring_cycle()-> dict:
+
+async def run_monitoring_cycle() -> dict:
     db = SessionLocal()
     summary = {}
     try:
@@ -22,12 +22,13 @@ async def run_monitoring_cycle()-> dict:
                 continue
 
             asset = rule.get("asset", "USDT")
-            budget = rule.get("budget", 5000.0)
+            budget = float(rule.get("budget", 5000.0))
             pay_types = rule.get("pay_types", [])
 
             buy_ads = await fetch_p2p_ads(fiat, "BUY", asset, budget, pay_types)
             sell_ads = await fetch_p2p_ads(fiat, "SELL", asset, budget, pay_types)
 
+            # Guardar instantáneas en base de datos
             for side, ads in (("BUY", buy_ads), ("SELL", sell_ads)):
                 if not ads:
                     continue
@@ -51,30 +52,59 @@ async def run_monitoring_cycle()-> dict:
 
             db.commit()
 
+            # Obtener promedios históricos y predicciones
+            avg_buy_hist, avg_sell_hist = get_historical_averages(db, fiat, asset)
             predictions = build_predictions(db, fiat, asset)
+            arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat, asset=asset)
+
             triggered = []
 
+            # 1. Alerta Inteligente de Arbitraje (Ganancia directa entre compra y venta)
+            if arbitrage_match and arbitrage_match.is_profitable and arbitrage_match.net_profit_fiat >= 10.0:
+                channels = await dispatch_arbitrage_alert(db, fiat, asset, arbitrage_match)
+                if channels:
+                    triggered.append({
+                        "signal": "ARBITRAGE_MATCH",
+                        "profit": arbitrage_match.net_profit_fiat,
+                        "roi_pct": arbitrage_match.net_profit_pct,
+                        "channels": channels
+                    })
+
+            # 2. Alerta Inteligente de Compra Barata
             if buy_ads:
                 best_buy = buy_ads[0]
                 z_buy = predictions.buy_analysis.z_score
-                if best_buy.price <= rule["buy_target"] or (z_buy is not None and z_buy <= -1.8):
-                    channels = await dispatch_alert(
-                        db, fiat, asset, "BUY_LOW", rule["buy_target"], best_buy, predictions.buy_analysis
-                    )
-                    triggered.append({"signal": "BUY_LOW", "price": best_buy.price, "channels": channels})
+                cond_target = best_buy.price <= rule["buy_target"]
+                cond_avg = (avg_buy_hist is not None and best_buy.price <= avg_buy_hist * 0.99)
+                cond_z = (z_buy is not None and z_buy <= -1.2)
 
+                if cond_target or cond_avg or cond_z:
+                    channels = await dispatch_alert(
+                        db, fiat, asset, "BUY_OPPORTUNITY", rule["buy_target"], best_buy, predictions.buy_analysis, avg_buy_hist
+                    )
+                    if channels:
+                        triggered.append({"signal": "BUY_OPPORTUNITY", "price": best_buy.price, "channels": channels})
+
+            # 3. Alerta Inteligente de Venta Cara
             if sell_ads:
                 best_sell = sell_ads[0]
                 z_sell = predictions.sell_analysis.z_score
-                if best_sell.price >= rule["sell_target"] or (z_sell is not None and z_sell >= 1.8):
+                cond_target = best_sell.price >= rule["sell_target"]
+                cond_avg = (avg_sell_hist is not None and best_sell.price >= avg_sell_hist * 1.01)
+                cond_z = (z_sell is not None and z_sell >= 1.2)
+
+                if cond_target or cond_avg or cond_z:
                     channels = await dispatch_alert(
-                        db, fiat, asset, "SELL_HIGH", rule["sell_target"], best_sell, predictions.sell_analysis
+                        db, fiat, asset, "SELL_OPPORTUNITY", rule["sell_target"], best_sell, predictions.sell_analysis, avg_sell_hist
                     )
-                    triggered.append({"signal": "SELL_HIGH", "price": best_sell.price, "channels": channels})
+                    if channels:
+                        triggered.append({"signal": "SELL_OPPORTUNITY", "price": best_sell.price, "channels": channels})
 
             summary[fiat] = {
                 "best_buy": buy_ads[0].price if buy_ads else None,
                 "best_sell": sell_ads[0].price if sell_ads else None,
+                "arbitrage_profitable": arbitrage_match.is_profitable if arbitrage_match else False,
+                "net_profit_fiat": arbitrage_match.net_profit_fiat if arbitrage_match else 0.0,
                 "alerts_triggered": triggered,
             }
     finally:
