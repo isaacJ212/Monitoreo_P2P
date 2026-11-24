@@ -18,7 +18,29 @@ class AdDetail(BaseModel):
     link: str = ""
 
 
+class ArbitragePair(BaseModel):
+    matched_bank: str
+    buy_merchant: str
+    buy_price: float
+    buy_min_limit: float
+    buy_max_limit: float
+    buy_link: str
+
+    sell_merchant: str
+    sell_price: float
+    sell_min_limit: float
+    sell_max_limit: float
+    sell_link: str
+
+    spread: float
+    roi_pct: float
+    gain_per_usdt: float
+    gain_per_1000_fiat: float
+    is_profitable: bool
+
+
 class ArbitrageMatch(BaseModel):
+    matched_bank: str
     buy_merchant: str
     buy_price: float
     buy_min_limit: float
@@ -35,14 +57,12 @@ class ArbitrageMatch(BaseModel):
 
     gross_spread: float
     spread_pct: float
-    simulated_budget: float
-    usdt_obtained: float
-    fiat_returned: float
-    net_profit_fiat: float
-    net_profit_pct: float
+    gain_per_usdt: float
+    gain_per_1000_fiat: float
     is_profitable: bool
     common_payment_methods: list[str]
     recommendation: str
+    top_matches: list[ArbitragePair] = []
 
 
 class LiveMarketResponse(BaseModel):
@@ -97,8 +117,8 @@ class PaymentMethodStat(BaseModel):
 
 
 class TimePatternAnalysis(BaseModel):
-    best_hours_to_buy: list[str] = []   # Ej: ["08:00 AM", "09:00 AM"]
-    best_hours_to_sell: list[str] = []  # Ej: ["06:00 PM", "07:00 PM"]
+    best_hours_to_buy: list[str] = []
+    best_hours_to_sell: list[str] = []
     best_arbitrage_window: ArbitrageWindow | None = None
     hourly_patterns: list[HourlyPattern] = []
     popular_payment_methods: list[PaymentMethodStat] = []

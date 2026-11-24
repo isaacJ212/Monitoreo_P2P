@@ -55,18 +55,19 @@ async def run_monitoring_cycle() -> dict:
             # Obtener promedios históricos y predicciones
             avg_buy_hist, avg_sell_hist = get_historical_averages(db, fiat, asset)
             predictions = build_predictions(db, fiat, asset)
-            arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat, asset=asset)
+            arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, fiat=fiat, asset=asset)
 
             triggered = []
 
-            # 1. Alerta Inteligente de Arbitraje (Ganancia directa entre compra y venta)
-            if arbitrage_match and arbitrage_match.is_profitable and arbitrage_match.net_profit_fiat >= 10.0:
+            # 1. Alerta Inteligente de Arbitraje (Mismo Banco y Ganancia Directa)
+            if arbitrage_match and arbitrage_match.is_profitable and arbitrage_match.gain_per_usdt > 0.05:
                 channels = await dispatch_arbitrage_alert(db, fiat, asset, arbitrage_match)
                 if channels:
                     triggered.append({
                         "signal": "ARBITRAGE_MATCH",
-                        "profit": arbitrage_match.net_profit_fiat,
-                        "roi_pct": arbitrage_match.net_profit_pct,
+                        "bank": arbitrage_match.matched_bank,
+                        "gain_per_usdt": arbitrage_match.gain_per_usdt,
+                        "roi_pct": arbitrage_match.spread_pct,
                         "channels": channels
                     })
 

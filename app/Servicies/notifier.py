@@ -41,26 +41,21 @@ def format_alert_message(
 
     avg_text = f"Promedio histórico reciente: C${historical_avg:.2f} {fiat}\n" if historical_avg else ""
 
-    # Mensaje Correo
     body_email = (
-        f"ALERTA INTELIGENTE BINANCE P2P - {action_title}\n"
+        f"ALERTA P2P - {action_title}\n"
         f"====================================================\n"
         f"Par: {asset}/{fiat}\n"
         f"Precio detectado: C${ad.price:.2f} {fiat}\n"
-        f"Meta configurada: C${target_price:.2f} {fiat}\n"
+        f"Meta fijada: C${target_price:.2f} {fiat}\n"
         f"{avg_text}"
         f"Comerciante: {ad.merchant_name} ({badge} | {ad.finish_rate_pct}% en {ad.month_orders} órdenes)\n"
-        f"Límites de compra: C${ad.min_limit:,.2f} - C${ad.max_limit:,.2f} {fiat}\n"
-        f"Monto sugerido: C${ad.suggested_amount_fiat:,.2f} {fiat} (~{ad.suggested_amount_asset:,.2f} {asset})\n"
-        f"Métodos de pago: {methods_str}\n"
+        f"Límites: C${ad.min_limit:,.2f} - C${ad.max_limit:,.2f} {fiat}\n"
+        f"Bancos disponibles: {methods_str}\n"
         f"----------------------------------------------------\n"
-        f"Tendencia: {prediction.trend or 'N/D'} | Z-Score: {prediction.z_score or 'N/D'}\n"
-        f"Proyección 30m: {prediction.projected_next_30m or 'N/D'} | 60m: {prediction.projected_next_60m or 'N/D'}\n"
         f"Recomendación: {prediction.recommendation}\n"
         f"Enlace Binance: {ad.link}\n"
     )
 
-    # Mensaje WhatsApp
     avg_wa = f"• Promedio histórico: *C${historical_avg:.2f}*\n" if historical_avg else ""
     body_whatsapp = (
         f"🔔 *ALERTA BINANCE P2P: {action_title}*\n"
@@ -71,7 +66,6 @@ def format_alert_message(
         f"👤 Comerciante: *{ad.merchant_name}* ({ad.finish_rate_pct}%)\n"
         f"📊 Límites: C${ad.min_limit:,.0f} - C${ad.max_limit:,.0f}\n"
         f"💳 Bancos: {methods_str}\n"
-        f"📈 Proyección 30m: C${prediction.projected_next_30m or 'N/D'}\n"
         f"🔗 Abrir Binance: {ad.link}"
     )
 
@@ -83,55 +77,47 @@ def format_arbitrage_message(fiat: str, asset: str, match: ArbitrageMatch) -> tu
     clean_asset = asset.upper()
 
     subject = (
-        f"[Binance P2P Arbitraje] 💰 Ganancia Estimada: +C${match.net_profit_fiat:,.2f} {clean_fiat} "
-        f"(+{match.net_profit_pct}%)"
+        f"[Binance P2P Arbitraje] 💰 Ganancia en {match.matched_bank}: +C${match.gain_per_usdt:.2f}/USDT "
+        f"(+{match.spread_pct}%)"
     )
 
-    common_bancos = ", ".join(match.common_payment_methods) if match.common_payment_methods else "Transferencia / Distintos bancos"
-
     body_email = (
-        f"🚀 MATCH DE ARBITRAJE DETECTADO: {clean_asset}/{clean_fiat}\n"
+        f"🏆 JUGADA GANADORA DETECTADA: {clean_asset}/{clean_fiat}\n"
         f"============================================================\n"
-        f"GANANCIA NETA ESTIMADA: +C${match.net_profit_fiat:,.2f} {clean_fiat} (+{match.net_profit_pct}% ROI)\n"
-        f"Capital base simulado: C${match.simulated_budget:,.2f} {clean_fiat}\n"
-        f"USDT comprados estimados: {match.usdt_obtained} {clean_asset}\n"
-        f"Retorno estimado en venta: C${match.fiat_returned:,.2f} {clean_fiat}\n"
+        f"BANCO COINCIDENTE: {match.matched_bank}\n"
+        f"Ganancia por cada 1 USDT: +C${match.gain_per_usdt:.2f} {clean_fiat} (+{match.spread_pct}%)\n"
+        f"Ganancia estimada por cada C$1,000 invertidos: +C${match.gain_per_1000_fiat:.2f} {clean_fiat}\n"
         f"------------------------------------------------------------\n"
         f"1. PASO COMPRA (PRECIO MÁS BAJO):\n"
         f"   - Comerciante: {match.buy_merchant}\n"
         f"   - Precio de Compra: C${match.buy_price:.2f} {clean_fiat}\n"
         f"   - Límites: C${match.buy_min_limit:,.0f} a C${match.buy_max_limit:,.0f} {clean_fiat}\n"
-        f"   - Bancos: {', '.join(match.buy_payment_methods)}\n"
         f"   - Enlace: {match.buy_link}\n\n"
         f"2. PASO VENTA (PRECIO MÁS ALTO):\n"
         f"   - Comerciante: {match.sell_merchant}\n"
         f"   - Precio de Venta: C${match.sell_price:.2f} {clean_fiat}\n"
         f"   - Límites: C${match.sell_min_limit:,.0f} a C${match.sell_max_limit:,.0f} {clean_fiat}\n"
-        f"   - Bancos: {', '.join(match.sell_payment_methods)}\n"
         f"   - Enlace: {match.sell_link}\n\n"
-        f"Bancos compatibles entre ambas partes: {common_bancos}\n"
         f"Spread bruto por USDT: C${match.gross_spread:.2f} {clean_fiat}\n"
         f"============================================================\n"
-        f"Recuerda verificar liquidez y realizar la transacción dentro de la app oficial de Binance."
+        f"Ambos comerciantes operan con {match.matched_bank}."
     )
 
     body_whatsapp = (
-        f"💰 *¡OPORTUNIDAD DE ARBITRAJE {clean_asset}/{clean_fiat}!* 🚀\n"
-        f"*Ganancia Estimada: +C${match.net_profit_fiat:,.2f} NIO (+{match.net_profit_pct}%)*\n"
-        f"💵 Capital simulado: C${match.simulated_budget:,.0f} {clean_fiat}\n"
+        f"🏆 *¡JUGADA GANADORA P2P ({clean_asset}/{clean_fiat})!* 🚀\n"
+        f"🏦 Banco coincidente: *{match.matched_bank}*\n"
+        f"💰 *Ganancia: +C${match.gain_per_usdt:.2f} por USDT (+{match.spread_pct}%)*\n"
+        f"💵 Ganas aprox: *+C${match.gain_per_1000_fiat:.2f} por cada C$1,000*\n"
         f"----------------------------------\n"
         f"🟢 *1. COMPRAR USDT BARATO:*\n"
         f"• Vendedor: *{match.buy_merchant}*\n"
         f"• Precio: *C${match.buy_price:.2f}*\n"
-        f"• Límites: C${match.buy_min_limit:,.0f} - C${match.buy_max_limit:,.0f}\n"
-        f"• Bancos: {', '.join(match.buy_payment_methods[:3])}\n\n"
+        f"• Límites: C${match.buy_min_limit:,.0f} - C${match.buy_max_limit:,.0f}\n\n"
         f"🔴 *2. VENDER USDT CARO:*\n"
         f"• Comprador: *{match.sell_merchant}*\n"
         f"• Precio: *C${match.sell_price:.2f}*\n"
         f"• Límites: C${match.sell_min_limit:,.0f} - C${match.sell_max_limit:,.0f}\n"
-        f"• Bancos: {', '.join(match.sell_payment_methods[:3])}\n"
         f"----------------------------------\n"
-        f"🏦 *Bancos coincidentes:* {common_bancos}\n"
         f"🔗 *P2P Binance:* {match.buy_link}"
     )
 
@@ -154,7 +140,32 @@ def _send_email_sync(subject: str, body: str) -> bool:
     return True
 
 
+async def _send_waha_message(text: str) -> bool:
+    """Envío de mensaje WhatsApp a través de WAHA (WhatsApp HTTP API)."""
+    if not (settings.WAHA_API_URL and settings.WAHA_CHAT_ID):
+        return False
+
+    chat_id = settings.WAHA_CHAT_ID.strip().replace("+", "").replace(" ", "")
+    if not chat_id.endswith("@c.us") and not chat_id.endswith("@g.us"):
+        chat_id = f"{chat_id}@c.us"
+
+    payload = {
+        "session": settings.WAHA_SESSION or "default",
+        "chatId": chat_id,
+        "text": text,
+    }
+    headers = {"Content-Type": "application/json"}
+    if settings.WAHA_API_KEY:
+        headers["X-Api-Key"] = settings.WAHA_API_KEY
+
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        res = await client.post(settings.WAHA_API_URL, json=payload, headers=headers)
+        res.raise_for_status()
+    return True
+
+
 async def _send_twilio_message(from_number: str, to_number: str, body: str) -> bool:
+    """Envío alternativo mediante Twilio si está configurado."""
     if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN and from_number and to_number):
         return False
     url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
@@ -186,17 +197,28 @@ async def dispatch_alert(
     )
     sent_channels: list[str] = []
 
+    # 1. Correo electrónico
     try:
         if await asyncio.to_thread(_send_email_sync, subject, body_email):
             sent_channels.append("email")
     except Exception as exc:
         print(f"[Error Email] {exc}")
 
+    # 2. WhatsApp vía WAHA (preferido) o Twilio (fallback)
+    wa_sent = False
     try:
-        if await _send_twilio_message(settings.TWILIO_WHATSAPP_FROM, settings.TWILIO_WHATSAPP_TO, body_wa):
-            sent_channels.append("whatsapp")
+        if await _send_waha_message(body_wa):
+            sent_channels.append("whatsapp(waha)")
+            wa_sent = True
     except Exception as exc:
-        print(f"[Error WhatsApp] {exc}")
+        print(f"[Aviso WAHA] {exc}")
+
+    if not wa_sent:
+        try:
+            if await _send_twilio_message(settings.TWILIO_WHATSAPP_FROM, settings.TWILIO_WHATSAPP_TO, body_wa):
+                sent_channels.append("whatsapp(twilio)")
+        except Exception:
+            pass
 
     log = AlertLog(
         fiat=fiat.upper(),
@@ -224,22 +246,33 @@ async def dispatch_arbitrage_alert(
     subject, body_email, body_wa = format_arbitrage_message(fiat, asset, match)
     sent_channels: list[str] = []
 
+    # 1. Correo electrónico
     try:
         if await asyncio.to_thread(_send_email_sync, subject, body_email):
             sent_channels.append("email")
     except Exception as exc:
         print(f"[Error Email Arbitraje] {exc}")
 
+    # 2. WhatsApp vía WAHA
+    wa_sent = False
     try:
-        if await _send_twilio_message(settings.TWILIO_WHATSAPP_FROM, settings.TWILIO_WHATSAPP_TO, body_wa):
-            sent_channels.append("whatsapp")
+        if await _send_waha_message(body_wa):
+            sent_channels.append("whatsapp(waha)")
+            wa_sent = True
     except Exception as exc:
-        print(f"[Error WhatsApp Arbitraje] {exc}")
+        print(f"[Aviso WAHA Arbitraje] {exc}")
+
+    if not wa_sent:
+        try:
+            if await _send_twilio_message(settings.TWILIO_WHATSAPP_FROM, settings.TWILIO_WHATSAPP_TO, body_wa):
+                sent_channels.append("whatsapp(twilio)")
+        except Exception:
+            pass
 
     log = AlertLog(
         fiat=fiat.upper(),
         signal_type=signal_type,
-        price=match.net_profit_fiat,
+        price=match.gain_per_usdt,
         channels_sent=",".join(sent_channels) if sent_channels else "db_only",
         message=body_email,
     )

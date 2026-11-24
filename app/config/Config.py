@@ -11,20 +11,24 @@ class Settings(BaseSettings):
     MIN_MONTH_ORDERS: int = 10
     ONLY_VERIFIED_MERCHANTS: bool = False
 
-    # Configuración de correo SMTP
+    # Configuración de correo SMTP (Gmail u otro)
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     ALERT_EMAIL_TO: str = ""
 
-    # Configuración de Twilio (WhatsApp / SMS)
+    # Configuración de WAHA (WhatsApp HTTP API)
+    WAHA_API_URL: str = "http://localhost:3008/api/sendText"
+    WAHA_SESSION: str = "default"
+    WAHA_API_KEY: str = ""
+    WAHA_CHAT_ID: str = ""  # Ej: 50588888888@c.us o número telefónico
+
+    # Configuración de Twilio (opcional como fallback)
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""
     TWILIO_WHATSAPP_TO: str = ""
-    TWILIO_SMS_FROM: str = ""
-    TWILIO_SMS_TO: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

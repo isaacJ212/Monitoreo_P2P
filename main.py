@@ -69,7 +69,7 @@ async def get_live_market(
     buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset_code, budget, pay_types, only_merchants=only_merchants)
     sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset_code, budget, pay_types, only_merchants=only_merchants)
 
-    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat_code, asset=asset_code)
+    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, fiat=fiat_code, asset=asset_code)
     avg_buy, avg_sell = get_historical_averages(db, fiat_code, asset_code)
 
     return LiveMarketResponse(
