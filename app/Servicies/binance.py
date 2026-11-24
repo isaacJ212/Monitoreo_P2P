@@ -1,5 +1,5 @@
 import httpx
-from app.config import settings
+from app.config.Config import settings
 from app.Schemas.schemas import AdDetail
 
 BINANCE_P2P_URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"

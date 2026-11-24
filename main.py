@@ -5,7 +5,8 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.config import FIAT_RULES
+
+from app.config.Config import FIAT_RULES
 from app.Database.database import Base, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
 from app.scheduler import run_monitoring_cycle, scheduler, start_scheduler

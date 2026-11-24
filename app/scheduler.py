@@ -1,8 +1,8 @@
 import json
-from sched import scheduler
+#from sched import scheduler
 import numpy as np 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from app.config import FIAT_RULES, settings
+from app.config.Config import FIAT_RULES, settings
 from app.Database.database import SessionLocal
 from app.Models.models import MarketSnapshot
 from app.Servicies.binance import fetch_p2p_ads
@@ -11,7 +11,7 @@ from app.Servicies.predictor import build_predictions
 
 
 
-schedule = AsyncIOScheduler()
+scheduler = AsyncIOScheduler()
 
 async def run_monitoring_cycle()-> dict:
     db = SessionLocal()

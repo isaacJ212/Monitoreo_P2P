@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseException):
-    Database_Url = str = "" 
+    DATABASE_URL = str = "sqlite:///./p2p_monitor.db" 
     POLL_INTERVAL_MINUTES : int = 3
     ALERT_COOLDOWN_MINUTES : int = 20
 

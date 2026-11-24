@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 import httpx
 from sqlalchemy.orm import Session
-from app.config import settings
+from app.config.Config import settings
 from app.Models.models import AlertLog
 from app.Schemas.schemas import AdDetail, PredictionSide
 

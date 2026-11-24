@@ -3,16 +3,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.Models.models import MarketSnapshot
 from app.Schemas.schemas import PredictionResponse, PredictionSide
-from app.Servicies.binance import _analyze_series
+#from app.Servicies.binance import analyze_series
 
-
-def analize_series(db: Session, fiat: str, trade_type: str, limit: int = 120) -> PredictionSide:
+def _analyze_series(db: Session, fiat: str, trade_type: str, limit: int = 120) -> PredictionSide:
     rows = (
         db.query(MarketSnapshot)
         .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
         .order_by(MarketSnapshot.timestamp.desc())
         .limit(limit)
-        .all
+        .all()
     )
     if len(rows) < 6 :
         return PredictionSide(

@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from Database.database import Base
+from app.Database.database import Base
+from sqlalchemy.orm import Mapped, mapped_column
 
 class MarketSnapshot(Base):
     __tablename__ = "market_snapshot"
@@ -13,7 +14,7 @@ class MarketSnapshot(Base):
     )
     fiat : Mapped[str] = mapped_column(String(10), index= True)
     asset: Mapped[str] = mapped_column(String(10), default="USDT")
-    trade_type : [str] = mapped_column(String(10), index=True)
+    trade_type : Mapped[str] = mapped_column(String(10), index=True)
 
     best_price : Mapped[float] = mapped_column(Float)
     avg_top5_price : Mapped[float] = mapped_column(Float)
