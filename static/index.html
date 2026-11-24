@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>P2P Monitor & Predictor - USDT/NIO</title>
+  <title>Binance P2P Arbitrage & Monitor | USDT - NIO</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js CDN -->
@@ -14,296 +14,536 @@
       theme: {
         extend: {
           colors: {
-            brand: {
-              dark: '#0b0f19',
-              card: '#111827',
-              border: '#1f2937',
-              accent: '#3b82f6',
-              buy: '#10b981',
-              sell: '#f43f5e'
+            crypto: {
+              bg: '#070a12',
+              card: '#0f172a',
+              cardHover: '#131e36',
+              border: '#1e293b',
+              accent: '#38bdf8',
+              buy: '#00f5a0',
+              buyDark: '#064e3b',
+              sell: '#ff3366',
+              sellDark: '#881337',
+              gold: '#fbbf24'
             }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
           }
         }
       }
     }
   </script>
   <style>
-    body { background-color: #0b0f19; color: #e5e7eb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 600; }
+    body {
+      background-color: #070a12;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.04) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(0, 245, 160, 0.04) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(255, 51, 102, 0.03) 0px, transparent 50%);
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(30, 41, 59, 0.9);
+    }
+    .glass-card:hover {
+      border-color: rgba(51, 65, 85, 0.9);
+    }
+    .neon-glow-buy {
+      box-shadow: 0 0 25px -5px rgba(0, 245, 160, 0.15);
+    }
+    .neon-glow-sell {
+      box-shadow: 0 0 25px -5px rgba(255, 51, 102, 0.15);
+    }
+    .neon-glow-gold {
+      box-shadow: 0 0 30px -5px rgba(251, 191, 36, 0.2);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.70rem;
+      font-weight: 600;
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #070a12; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="min-h-screen text-slate-100 flex flex-col">
 
-  <!-- Header -->
-  <header class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pb-6 border-b border-gray-800">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-yellow-500 to-amber-300 flex items-center justify-center font-bold text-gray-950 text-xl shadow-lg shadow-yellow-500/20">
-        ₮
-      </div>
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          Monitoreo P2P Binance <span class="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">USDT / NIO</span>
-        </h1>
-        <p class="text-xs text-gray-400">Predicciones estadísticas, horarios óptimos y alertas de compra/venta en Nicaragua</p>
-      </div>
-    </div>
-
-    <!-- Actions & Controls -->
-    <div class="flex items-center gap-3 flex-wrap">
-      <div class="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs">
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span id="last-update" class="text-gray-300">Conectando...</span>
-      </div>
-
-      <select id="auto-refresh" onchange="cambiarIntervalo()" class="bg-gray-900 border border-gray-800 text-xs rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-blue-500">
-        <option value="10000">Refresco: 10s</option>
-        <option value="30000" selected>Refresco: 30s</option>
-        <option value="60000">Refresco: 1 min</option>
-        <option value="0">Refresco: Pausado</option>
-      </select>
-
-      <button onclick="escanearMercado()" id="btn-scan" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-blue-600/20 active:scale-95">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        <span>Escanear Ahora</span>
-      </button>
-
-      <button onclick="abrirConfigModal()" class="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium text-xs px-3 py-2 rounded-lg transition border border-gray-700">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-        <span>Objetivos</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- Banner de Estado de Alertas -->
-  <div id="alert-banner" class="max-w-7xl mx-auto mt-4 hidden">
-    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between text-amber-300 text-sm">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">🔔</span>
-        <span id="alert-banner-text">¡Alerta de oportunidad detectada en el mercado!</span>
-      </div>
-      <button onclick="document.getElementById('alert-banner').classList.add('hidden')" class="text-amber-400 hover:text-amber-200 text-xs">Cerrar</button>
-    </div>
-  </div>
-
-  <main class="max-w-7xl mx-auto mt-6 space-y-6">
-
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  <!-- Top Navigation Bar -->
+  <nav class="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       
-      <!-- Mejor Compra -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
-        <div class="absolute -right-3 -top-3 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
-        <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wider">🟢 Mejor Compra (BUY)</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-best-buy" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO/USDT</span>
+      <!-- Brand & Pair -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-600 flex items-center justify-center font-black text-slate-950 text-xl shadow-lg shadow-amber-500/20">
+          ₮
         </div>
-        <div class="mt-2 text-xs text-gray-400 flex flex-col gap-0.5">
-          <span id="kpi-merchant-buy">Comerciante: --</span>
-          <span id="kpi-limits-buy">Límites: --</span>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
+              BINANCE P2P <span class="text-crypto-accent font-semibold">TERMINAL</span>
+            </h1>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+              USDT / NIO
+            </span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
+              NICARAGUA (UTC-6)
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400">Arbitraje automatizado, predicciones horarias y monitor en tiempo real</p>
         </div>
       </div>
 
-      <!-- Mejor Venta -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
-        <div class="absolute -right-3 -top-3 w-16 h-16 bg-rose-500/10 rounded-full blur-xl"></div>
-        <p class="text-xs text-rose-400 font-semibold uppercase tracking-wider">🔴 Mejor Venta (SELL)</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-best-sell" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO/USDT</span>
+      <!-- Live Indicators & Actions -->
+      <div class="flex items-center gap-3">
+        <!-- Live Status -->
+        <div class="hidden sm:flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-crypto-buy opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-crypto-buy"></span>
+          </span>
+          <span class="text-slate-400">Actualizado:</span>
+          <span id="nav-last-update" class="font-mono text-slate-200 font-semibold">--:--:--</span>
         </div>
-        <div class="mt-2 text-xs text-gray-400 flex flex-col gap-0.5">
-          <span id="kpi-merchant-sell">Comerciante: --</span>
-          <span id="kpi-limits-sell">Límites: --</span>
+
+        <!-- Refresh Selector -->
+        <select id="select-refresh" onchange="cambiarIntervalo()" class="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-2 text-slate-300 focus:outline-none focus:border-crypto-accent">
+          <option value="10000">Refresco: 10s</option>
+          <option value="30000" selected>Refresco: 30s</option>
+          <option value="60000">Refresco: 1m</option>
+          <option value="0">Pausado</option>
+        </select>
+
+        <!-- Scan Button -->
+        <button onclick="escanearMercado()" id="btn-scan" class="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs px-3.5 py-2 rounded-lg transition shadow-lg shadow-blue-500/20 active:scale-95">
+          <svg id="icon-refresh" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>Escanear</span>
+        </button>
+
+        <!-- Config Button -->
+        <button onclick="abrirConfigModal()" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition" title="Configurar Alertas">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+      </div>
+
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+
+    <!-- HERO SECTION: ARBITRAGE MATCH MAKER & SIMULATOR -->
+    <div class="glass-card rounded-2xl p-6 border-slate-800 shadow-2xl relative overflow-hidden neon-glow-gold">
+      <div class="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Header of the match maker -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold tracking-wide uppercase">
+              ⚡ Arbitrage Match Maker
+            </span>
+            <span id="match-badge-status" class="badge bg-slate-800 text-slate-400">Analizando mercado...</span>
+          </div>
+          <h2 class="text-xl font-black text-white mt-1">
+            Simulador de Ganancia en Tiempo Real
+          </h2>
+          <p class="text-xs text-slate-400">
+            Enlace directo entre el anuncio de compra más barato y el anuncio de venta más caro en Binance P2P
+          </p>
+        </div>
+
+        <!-- Budget input simulator -->
+        <div class="flex items-center gap-2 bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+          <label class="text-xs text-slate-400 font-medium pl-1">Presupuesto Simulado:</label>
+          <div class="relative">
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono font-bold">C$</span>
+            <input type="number" id="sim-budget-input" value="5000" step="500" min="500" onchange="recalcularArbitraje()" onkeyup="recalcularArbitraje()" class="bg-slate-900 border border-slate-700/80 text-white font-mono font-bold text-xs rounded-lg pl-8 pr-2 py-1.5 w-32 focus:outline-none focus:border-amber-400">
+          </div>
+          <div class="hidden sm:flex gap-1">
+            <button onclick="setPresupuesto(2000)" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">2K</button>
+            <button onclick="setPresupuesto(5000)" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">5K</button>
+            <button onclick="setPresupuesto(10000)" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">10K</button>
+          </div>
         </div>
       </div>
 
-      <!-- Spread / Margen -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
-        <p class="text-xs text-blue-400 font-semibold uppercase tracking-wider">📊 Margen / Spread</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-spread" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO</span>
-        </div>
-        <div class="mt-2 text-xs text-gray-400">
-          <span id="kpi-spread-pct" class="font-medium text-gray-300">Margen estimado: --%</span>
-        </div>
-      </div>
+      <!-- Match Flow Grid (BUY -> PROFIT -> SELL) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center mt-6">
+        
+        <!-- Step 1: BUY -->
+        <div class="lg:col-span-4 bg-slate-950/90 rounded-xl p-4 border border-emerald-500/30 neon-glow-buy relative">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-crypto-buy uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-crypto-buy"></span> 1. COMPRA MÁS BARATA
+            </span>
+            <span class="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-mono">Pagas Córdobas</span>
+          </div>
 
-      <!-- Objetivos Configurados -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
-        <p class="text-xs text-amber-400 font-semibold uppercase tracking-wider">🎯 Tus Objetivos de Alerta</p>
-        <div class="mt-2 text-sm text-gray-200 flex flex-col gap-1">
-          <div class="flex justify-between">
-            <span class="text-gray-400">Avisar Compra Barata &le;:</span>
-            <span id="rule-buy-target" class="font-bold text-emerald-400">-- NIO</span>
+          <div class="mt-3 flex items-baseline justify-between">
+            <div>
+              <p class="text-2xl font-black font-mono text-white" id="match-buy-price">--.-- <span class="text-xs font-normal text-slate-400">NIO</span></p>
+              <p class="text-[11px] text-slate-400 mt-0.5" id="match-buy-merchant">Comerciante: --</p>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 block">Obtienes aprox:</span>
+              <span class="text-base font-bold font-mono text-crypto-buy" id="match-usdt-obtained">--.-- USDT</span>
+            </div>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray-400">Avisar Venta Cara &ge;:</span>
-            <span id="rule-sell-target" class="font-bold text-rose-400">-- NIO</span>
+
+          <div class="mt-3 pt-3 border-t border-slate-800 text-[11px] space-y-1 text-slate-300">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Límites:</span>
+              <span class="font-mono" id="match-buy-limits">-- - -- NIO</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">Bancos:</span>
+              <span class="truncate max-w-[180px] text-right font-medium text-slate-200" id="match-buy-banks">--</span>
+            </div>
           </div>
-          <div class="flex justify-between">
-            <span class="text-gray-400">Presupuesto Simulado:</span>
-            <span id="rule-budget" class="font-semibold text-gray-300">-- NIO</span>
+
+          <div class="mt-3">
+            <a id="match-buy-link" href="https://p2p.binance.com/es/trade/all-payments/USDT?fiat=NIO" target="_blank" class="block w-full text-center py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs transition shadow-md shadow-emerald-500/20">
+              Ir a Comprar en Binance &rarr;
+            </a>
           </div>
         </div>
+
+        <!-- Center: PROFIT / RESULT CARD -->
+        <div class="lg:col-span-4 bg-gradient-to-b from-slate-900 to-slate-950 rounded-xl p-5 border border-slate-700/80 text-center shadow-lg flex flex-col justify-between h-full">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">
+              Resultado de la Operación
+            </span>
+            <div id="profit-badge-container" class="inline-block px-3 py-1 rounded-full text-xs font-black uppercase mb-3 bg-slate-800 text-slate-300">
+              Cálculo en vivo
+            </div>
+
+            <div class="space-y-1">
+              <p class="text-xs text-slate-400">Retorno Neto Estimado:</p>
+              <p class="text-3xl font-black font-mono tracking-tight" id="match-net-profit">C$ 0.00</p>
+              <p class="text-xs font-bold font-mono text-slate-300" id="match-net-roi">+0.00% ROI</p>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-800/80 text-[11px] space-y-1.5 text-slate-300">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Spread Bruto por USDT:</span>
+              <span class="font-mono font-bold" id="match-gross-spread">C$ 0.00 NIO</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Bancos coincidentes:</span>
+              <span class="text-amber-300 font-medium truncate max-w-[160px]" id="match-common-banks">--</span>
+            </div>
+          </div>
+
+          <p class="text-[10px] text-slate-400 italic mt-3" id="match-recommendation">
+            Calculando emparejamiento de anuncios...
+          </p>
+        </div>
+
+        <!-- Step 2: SELL -->
+        <div class="lg:col-span-4 bg-slate-950/90 rounded-xl p-4 border border-rose-500/30 neon-glow-sell relative">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-crypto-sell uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-crypto-sell"></span> 2. VENTA MÁS CARA
+            </span>
+            <span class="text-[10px] bg-rose-950 text-rose-300 border border-rose-800 px-2 py-0.5 rounded font-mono">Recibes Córdobas</span>
+          </div>
+
+          <div class="mt-3 flex items-baseline justify-between">
+            <div>
+              <p class="text-2xl font-black font-mono text-white" id="match-sell-price">--.-- <span class="text-xs font-normal text-slate-400">NIO</span></p>
+              <p class="text-[11px] text-slate-400 mt-0.5" id="match-sell-merchant">Comerciante: --</p>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 block">Recibes aprox:</span>
+              <span class="text-base font-bold font-mono text-crypto-sell" id="match-fiat-returned">--.-- NIO</span>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-800 text-[11px] space-y-1 text-slate-300">
+            <div class="flex justify-between">
+              <span class="text-slate-400">Límites:</span>
+              <span class="font-mono" id="match-sell-limits">-- - -- NIO</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400">Bancos:</span>
+              <span class="truncate max-w-[180px] text-right font-medium text-slate-200" id="match-sell-banks">--</span>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <a id="match-sell-link" href="https://p2p.binance.com/es/trade/all-payments/USDT?fiat=NIO" target="_blank" class="block w-full text-center py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shadow-md shadow-rose-500/20">
+              Ir a Vender en Binance &rarr;
+            </a>
+          </div>
+        </div>
+
       </div>
 
     </div>
 
-    <!-- Sección de Predicción y Patrones Horarios -->
+    <!-- METRICS & PREDICTIONS ROW -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- Current Buy vs Historical Average -->
+      <div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-emerald-400">🟢 COMPRA VS PROMEDIO</span>
+          <span id="buy-vs-avg-badge" class="badge bg-slate-800 text-slate-300">--</span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-2xl font-black font-mono text-white" id="kpi-live-buy">--.--</span>
+          <span class="text-xs text-slate-400">C$ actual</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Promedio Histórico: <span class="font-mono text-slate-200" id="kpi-avg-buy">--.-- NIO</span>
+        </p>
+      </div>
+
+      <!-- Current Sell vs Historical Average -->
+      <div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-rose-400">🔴 VENTA VS PROMEDIO</span>
+          <span id="sell-vs-avg-badge" class="badge bg-slate-800 text-slate-300">--</span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-2xl font-black font-mono text-white" id="kpi-live-sell">--.--</span>
+          <span class="text-xs text-slate-400">C$ actual</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Promedio Histórico: <span class="font-mono text-slate-200" id="kpi-avg-sell">--.-- NIO</span>
+        </p>
+      </div>
+
+      <!-- Linear Regression & Trend -->
+      <div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-sky-400">📈 TENDENCIA & PROYECCIÓN</span>
+          <span id="kpi-trend" class="badge bg-slate-800 text-slate-300">LATERAL</span>
+        </div>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-2xl font-black font-mono text-sky-300" id="kpi-proj-30m">--.--</span>
+          <span class="text-xs text-slate-400">C$ en +30m</span>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">
+          Proyección +60m: <span class="font-mono text-slate-200" id="kpi-proj-60m">--.-- NIO</span> | Z-Score: <span class="font-mono text-slate-200" id="kpi-zscore">--</span>
+        </p>
+      </div>
+
+      <!-- Notification Channels Active -->
+      <div class="glass-card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-amber-400">📱 CANALES DE ALERTA</span>
+          <span class="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Activo</span>
+        </div>
+        <div class="mt-2 space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400 flex items-center gap-1">✉️ Correo (SMTP):</span>
+            <span class="font-mono text-emerald-400 font-semibold" id="cfg-email-status">Conectado</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400 flex items-center gap-1">💬 WhatsApp (Twilio):</span>
+            <span class="font-mono text-emerald-400 font-semibold" id="cfg-wa-status">Conectado</span>
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">Alertas automáticas por arbitraje y cruce de metas</p>
+      </div>
+
+    </div>
+
+    <!-- HORARIOS ÓPTIMOS & VENTANAS DE ARBITRAJE -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <!-- Análisis Predictivo -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>🧠</span> Predicción Matemática (NumPy)
-        </h2>
+      <!-- Ventana Óptima de Arbitraje Diario -->
+      <div class="glass-card rounded-xl p-5 space-y-3 lg:col-span-2">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>⏰</span> Ventana Diaria de Máximo Arbitraje (Nicaragua)
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono">Basado en histórico por horas</span>
+        </div>
 
-        <div class="bg-gray-950/60 rounded-lg p-3 border border-gray-800/80 space-y-2">
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Tendencia General:</span>
-            <span id="pred-trend" class="badge bg-gray-800 text-gray-300">Cargando...</span>
+        <div class="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-rose-950/40 border border-slate-700/80 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div class="space-y-1 text-center md:text-left">
+            <span class="text-xs text-crypto-buy font-bold uppercase tracking-wider block">🛒 Mejor Hora para COMPRAR</span>
+            <p class="text-2xl font-black font-mono text-white" id="window-buy-hour">--:-- --</p>
+            <p class="text-xs text-slate-400" id="window-buy-price">Precio prom: C$ --.--</p>
           </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Z-Score (Desviación):</span>
-            <span id="pred-zscore" class="font-mono text-gray-300">--</span>
+
+          <div class="text-center font-mono py-1 px-3 rounded-lg bg-slate-950/80 border border-slate-800">
+            <span class="text-[10px] text-slate-400 uppercase tracking-widest block">Margen Potencial</span>
+            <span class="text-lg font-black text-amber-400" id="window-spread">+C$ 0.00</span>
+            <span class="text-xs font-bold text-emerald-400 block" id="window-roi">+0.00%</span>
           </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Proyección +30 min:</span>
-            <span id="pred-proj-30" class="font-bold text-blue-400">-- NIO</span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Proyección +60 min:</span>
-            <span id="pred-proj-60" class="font-bold text-blue-300">-- NIO</span>
+
+          <div class="space-y-1 text-center md:text-right">
+            <span class="text-xs text-crypto-sell font-bold uppercase tracking-wider block">💰 Mejor Hora para VENDER</span>
+            <p class="text-2xl font-black font-mono text-white" id="window-sell-hour">--:-- --</p>
+            <p class="text-xs text-slate-400" id="window-sell-price">Precio prom: C$ --.--</p>
           </div>
         </div>
 
-        <div class="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
-          <p class="font-semibold mb-1">Recomendación Actual:</p>
-          <p id="pred-recommendation">Analizando histórico...</p>
-        </div>
-      </div>
+        <p class="text-xs text-slate-300 italic" id="window-insight">
+          Calculando la mejor franja horaria para comprar al menor precio y vender al mayor precio...
+        </p>
 
-      <!-- Horarios Óptimos en Nicaragua -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>⏰</span> Mejores Horas para Operar (Nicaragua)
-        </h2>
-
-        <div class="space-y-3 text-xs">
-          <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <span class="font-semibold text-emerald-400 block mb-1">🛒 Horas recomendadas para COMPRAR barato:</span>
-            <div id="best-buy-hours" class="flex gap-2 flex-wrap text-emerald-300 font-mono">--</div>
+        <!-- Matriz de horas 24h -->
+        <div class="pt-2">
+          <span class="text-[11px] font-semibold text-slate-400 block mb-2">Comportamiento de precios en 24 Horas:</span>
+          <div id="hourly-matrix-bars" class="grid grid-cols-12 gap-1 text-[10px] font-mono text-center">
+            <!-- Dynamic 24h pills -->
           </div>
-
-          <div class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20">
-            <span class="font-semibold text-rose-400 block mb-1">💰 Horas recomendadas para VENDER caro:</span>
-            <div id="best-sell-hours" class="flex gap-2 flex-wrap text-rose-300 font-mono">--</div>
-          </div>
-
-          <p id="time-insight" class="text-gray-400 text-xs italic">Cargando análisis de patrones horarios...</p>
         </div>
       </div>
 
-      <!-- Métodos de Pago más Utilizados -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>💳</span> Métodos de Pago y Límites Promedio
-        </h2>
-        <div id="payment-methods-list" class="space-y-2 text-xs">
-          <p class="text-gray-500">Cargando métodos de pago...</p>
+      <!-- Métodos de Pago más Activos -->
+      <div class="glass-card rounded-xl p-5 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>🏦</span> Bancos Más Usados en Nicaragua
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono">Frecuencia y límites</span>
+        </div>
+        <div id="payment-methods-container" class="space-y-2 text-xs">
+          <p class="text-slate-500">Cargando métodos bancarios...</p>
         </div>
       </div>
 
     </div>
 
-    <!-- Gráfica Histórica -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>📈</span> Evolución de Precios Históricos (BUY vs SELL)
-        </h2>
-        <span class="text-xs text-gray-500">Instantáneas guardadas por el programador</span>
+    <!-- PRICE CHART -->
+    <div class="glass-card rounded-xl p-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>📊</span> Historial de Precios: Compra vs Venta vs Promedios
+          </h3>
+          <p class="text-xs text-slate-400">Instantáneas capturadas periódicamente por el programador de fondo</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-mono">
+          <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-3 h-0.5 bg-emerald-400"></span> Compra</span>
+          <span class="flex items-center gap-1.5 text-rose-400"><span class="w-3 h-0.5 bg-rose-400"></span> Venta</span>
+        </div>
       </div>
       <div class="h-64 w-full">
-        <canvas id="priceChart"></canvas>
+        <canvas id="historicalChart"></canvas>
       </div>
     </div>
 
-    <!-- Tablas de Anuncios P2P Detallados -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      <!-- Tabla de Compras -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-          <h2 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🟢</span> Anuncios para COMPRAR USDT (NIO &rarr; USDT)
-          </h2>
-          <span id="count-buy-ads" class="text-xs text-gray-400 font-mono">0 anuncios</span>
+    <!-- TOP 10 ADS TABLES (BUY & SELL) -->
+    <div class="space-y-4">
+      
+      <!-- Filter Bar -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-semibold text-slate-400">Filtrar por Banco:</span>
+          <button onclick="filtrarPorBanco('')" class="btn-bank text-xs px-2.5 py-1 rounded-lg bg-crypto-accent text-slate-950 font-bold" data-bank="">Todos</button>
+          <button onclick="filtrarPorBanco('BAC')" class="btn-bank text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white" data-bank="BAC">BAC Credomatic</button>
+          <button onclick="filtrarPorBanco('Lafise')" class="btn-bank text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white" data-bank="Lafise">Banco LAFISE</button>
+          <button onclick="filtrarPorBanco('Banpro')" class="btn-bank text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white" data-bank="Banpro">Banpro / Billetera Móvil</button>
         </div>
-        <div class="mt-3 overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead>
-              <tr class="text-gray-500 border-b border-gray-800/80">
-                <th class="pb-2">Comerciante</th>
-                <th class="pb-2">Precio</th>
-                <th class="pb-2">Límites (NIO)</th>
-                <th class="pb-2">Métodos de Pago</th>
-              </tr>
-            </thead>
-            <tbody id="table-buy-body" class="divide-y divide-gray-800/50">
-              <tr><td colspan="4" class="py-4 text-center text-gray-500">Cargando anuncios...</td></tr>
-            </tbody>
-          </table>
+        <div class="text-xs text-slate-400 font-mono">
+          Top 10 Ordenados Estrictamente por Mejor Precio
         </div>
       </div>
 
-      <!-- Tabla de Ventas -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-          <h2 class="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🔴</span> Anuncios para VENDER USDT (USDT &rarr; NIO)
-          </h2>
-          <span id="count-sell-ads" class="text-xs text-gray-400 font-mono">0 anuncios</span>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- TOP 10 BUY ADS -->
+        <div class="glass-card rounded-xl p-5 border-emerald-950/60">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h3 class="text-sm font-black text-crypto-buy uppercase tracking-wider flex items-center gap-2">
+                <span>🛒</span> Top 10 para COMPRAR USDT (Más Baratos)
+              </h3>
+              <p class="text-[11px] text-slate-400">Ordenados de menor a mayor precio en Córdobas</p>
+            </div>
+            <span class="text-xs font-mono font-bold text-slate-400" id="count-buy-table">10 anuncios</span>
+          </div>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-slate-500 border-b border-slate-800 text-[11px]">
+                  <th class="pb-2">Comerciante</th>
+                  <th class="pb-2">Precio (NIO)</th>
+                  <th class="pb-2">Límites Min - Max</th>
+                  <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-buy-ads" class="divide-y divide-slate-800/60 font-mono">
+                <tr><td colspan="5" class="py-4 text-center text-slate-500">Cargando anuncios...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="mt-3 overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead>
-              <tr class="text-gray-500 border-b border-gray-800/80">
-                <th class="pb-2">Comerciante</th>
-                <th class="pb-2">Precio</th>
-                <th class="pb-2">Límites (NIO)</th>
-                <th class="pb-2">Métodos de Pago</th>
-              </tr>
-            </thead>
-            <tbody id="table-sell-body" class="divide-y divide-gray-800/50">
-              <tr><td colspan="4" class="py-4 text-center text-gray-500">Cargando anuncios...</td></tr>
-            </tbody>
-          </table>
+
+        <!-- TOP 10 SELL ADS -->
+        <div class="glass-card rounded-xl p-5 border-rose-950/60">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h3 class="text-sm font-black text-crypto-sell uppercase tracking-wider flex items-center gap-2">
+                <span>💰</span> Top 10 para VENDER USDT (Más Caros)
+              </h3>
+              <p class="text-[11px] text-slate-400">Ordenados de mayor a menor precio en Córdobas</p>
+            </div>
+            <span class="text-xs font-mono font-bold text-slate-400" id="count-sell-table">10 anuncios</span>
+          </div>
+
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-slate-500 border-b border-slate-800 text-[11px]">
+                  <th class="pb-2">Comerciante</th>
+                  <th class="pb-2">Precio (NIO)</th>
+                  <th class="pb-2">Límites Min - Max</th>
+                  <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-sell-ads" class="divide-y divide-slate-800/60 font-mono">
+                <tr><td colspan="5" class="py-4 text-center text-slate-500">Cargando anuncios...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
 
     </div>
 
-    <!-- Registro de Alertas Disparadas -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-      <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-        <span>📜</span> Historial de Alertas Recientes Enviadas
-      </h2>
+    <!-- ALERTS LOG TABLE -->
+    <div class="glass-card rounded-xl p-5">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+        <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+          <span>📜</span> Historial de Notificaciones Despachadas
+        </h3>
+        <span class="text-xs text-slate-400">Registro de alertas enviadas por Correo y WhatsApp</span>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs">
           <thead>
-            <tr class="text-gray-500 border-b border-gray-800">
-              <th class="pb-2">Fecha/Hora</th>
-              <th class="pb-2">Tipo de Señal</th>
-              <th class="pb-2">Precio Detectado</th>
-              <th class="pb-2">Canales</th>
-              <th class="pb-2">Mensaje / Detalle</th>
+            <tr class="text-slate-500 border-b border-slate-800">
+              <th class="pb-2 font-medium">Fecha y Hora</th>
+              <th class="pb-2 font-medium">Tipo de Señal</th>
+              <th class="pb-2 font-medium">Precio / Ganancia</th>
+              <th class="pb-2 font-medium">Canales</th>
+              <th class="pb-2 font-medium">Detalle del Mensaje</th>
             </tr>
           </thead>
-          <tbody id="table-alerts-body" class="divide-y divide-gray-800/50">
-            <tr><td colspan="5" class="py-3 text-center text-gray-500">Cargando registro de alertas...</td></tr>
+          <tbody id="tbody-alerts" class="divide-y divide-slate-800/50">
+            <tr><td colspan="5" class="py-4 text-center text-slate-500">Cargando registros...</td></tr>
           </tbody>
         </table>
       </div>
@@ -311,46 +551,49 @@
 
   </main>
 
-  <!-- Modal de Configuración de Objetivos -->
-  <div id="modal-config" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+  <!-- MODAL DE CONFIGURACIÓN DE OBJETIVOS -->
+  <div id="modal-config" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="glass-card rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-700">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <h3 class="font-bold text-white text-base flex items-center gap-2">
-          <span>🎯</span> Configuración de Alertas (NIO)
+          <span>🎯</span> Parámetros de Monitoreo (NIO)
         </h3>
-        <button onclick="cerrarConfigModal()" class="text-gray-400 hover:text-white">&times;</button>
+        <button onclick="cerrarConfigModal()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
       </div>
 
-      <form id="form-config" onsubmit="guardarReglas(event)" class="space-y-4 text-xs">
+      <form id="form-rules" onsubmit="guardarReglas(event)" class="space-y-4 text-xs">
         <div>
-          <label class="block text-gray-400 mb-1">Avisarme si la COMPRA baja de (NIO):</label>
-          <input type="number" step="0.01" id="input-buy-target" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[10px]">Ejemplo: 36.80 (si alguien vende a 36.80 o menos, te avisa).</span>
+          <label class="block text-slate-300 font-semibold mb-1">Avisarme si la COMPRA cae por debajo de (NIO):</label>
+          <input type="number" step="0.01" id="cfg-buy-target" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-crypto-accent">
+          <p class="text-slate-500 text-[10px] mt-1">Si alguien vende a este precio o menos, el sistema dispara alerta de compra barata.</p>
         </div>
 
         <div>
-          <label class="block text-gray-400 mb-1">Avisarme si la VENTA sube de (NIO):</label>
-          <input type="number" step="0.01" id="input-sell-target" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[10px]">Ejemplo: 40.00 (si alguien compra a 40.00 o más, te avisa).</span>
+          <label class="block text-slate-300 font-semibold mb-1">Avisarme si la VENTA sube por encima de (NIO):</label>
+          <input type="number" step="0.01" id="cfg-sell-target" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-crypto-accent">
+          <p class="text-slate-500 text-[10px] mt-1">Si alguien compra a este precio o más, el sistema dispara alerta de venta cara.</p>
         </div>
 
         <div>
-          <label class="block text-gray-400 mb-1">Presupuesto Simulado a Operar (NIO):</label>
-          <input type="number" step="100" id="input-budget" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+          <label class="block text-slate-300 font-semibold mb-1">Presupuesto Simulado de Operación (NIO):</label>
+          <input type="number" step="500" id="cfg-budget" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-crypto-accent">
         </div>
 
-        <div class="pt-3 flex justify-end gap-2 border-t border-gray-800">
-          <button type="button" onclick="cerrarConfigModal()" class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">Guardar Cambios</button>
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="cerrarConfigModal()" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-crypto-accent hover:bg-sky-400 text-slate-950 font-bold transition">Guardar Cambios</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Script Lógica Frontend -->
+  <!-- SCRIPT LOGIC -->
   <script>
     let timerId = null;
     let chartInstance = null;
+    let currentRawBuyAds = [];
+    let currentRawSellAds = [];
+    let activeBankFilter = "";
     const API_BASE = '/api/v1';
 
     async function cargarTodo() {
@@ -364,71 +607,181 @@
     }
 
     async function cargarMercadoEnVivo() {
+      const budget = parseFloat(document.getElementById('sim-budget-input').value) || 5000;
       try {
-        const res = await fetch(`${API_BASE}/live/NIO?budget=2000`);
+        const res = await fetch(`${API_BASE}/live/NIO?budget=${budget}`);
         if (!res.ok) throw new Error('Error al consultar mercado');
         const data = await res.json();
 
-        document.getElementById('last-update').innerText = new Date(data.checked_at).toLocaleTimeString('es-NI');
+        // Timestamp
+        document.getElementById('nav-last-update').innerText = new Date(data.checked_at).toLocaleTimeString('es-NI');
 
-        // Best Buy
+        // Store raw ads
+        currentRawBuyAds = data.buy_ads || [];
+        currentRawSellAds = data.sell_ads || [];
+
+        // Arbitrage Match Maker Update
+        actualizarMatchMaker(data.arbitrage_match);
+
+        // KPI Comparisons
         if (data.best_buy) {
-          document.getElementById('kpi-best-buy').innerText = data.best_buy.price.toFixed(2);
-          document.getElementById('kpi-merchant-buy').innerText = `Comerciante: ${data.best_buy.merchant_name} (${data.best_buy.finish_rate_pct}% en ${data.best_buy.month_orders} ord.)`;
-          document.getElementById('kpi-limits-buy').innerText = `Mín C$${data.best_buy.min_limit.toLocaleString()} - Máx C$${data.best_buy.max_limit.toLocaleString()}`;
-        } else {
-          document.getElementById('kpi-best-buy').innerText = 'Sin anuncios';
+          document.getElementById('kpi-live-buy').innerText = data.best_buy.price.toFixed(2);
         }
-
-        // Best Sell
         if (data.best_sell) {
-          document.getElementById('kpi-best-sell').innerText = data.best_sell.price.toFixed(2);
-          document.getElementById('kpi-merchant-sell').innerText = `Comerciante: ${data.best_sell.merchant_name} (${data.best_sell.finish_rate_pct}% en ${data.best_sell.month_orders} ord.)`;
-          document.getElementById('kpi-limits-sell').innerText = `Mín C$${data.best_sell.min_limit.toLocaleString()} - Máx C$${data.best_sell.max_limit.toLocaleString()}`;
-        } else {
-          document.getElementById('kpi-best-sell').innerText = 'Sin anuncios';
+          document.getElementById('kpi-live-sell').innerText = data.best_sell.price.toFixed(2);
+        }
+        if (data.historical_avg_buy) {
+          document.getElementById('kpi-avg-buy').innerText = `${data.historical_avg_buy.toFixed(2)} NIO`;
+          if (data.best_buy) {
+            const diffBuy = data.best_buy.price - data.historical_avg_buy;
+            const bBadge = document.getElementById('buy-vs-avg-badge');
+            if (diffBuy < 0) {
+              bBadge.className = 'badge bg-emerald-500/20 text-crypto-buy border border-emerald-500/30';
+              bBadge.innerText = `${diffBuy.toFixed(2)} C$ más barato`;
+            } else {
+              bBadge.className = 'badge bg-slate-800 text-slate-300';
+              bBadge.innerText = `+${diffBuy.toFixed(2)} C$ sobre prom.`;
+            }
+          }
+        }
+        if (data.historical_avg_sell) {
+          document.getElementById('kpi-avg-sell').innerText = `${data.historical_avg_sell.toFixed(2)} NIO`;
+          if (data.best_sell) {
+            const diffSell = data.best_sell.price - data.historical_avg_sell;
+            const sBadge = document.getElementById('sell-vs-avg-badge');
+            if (diffSell > 0) {
+              sBadge.className = 'badge bg-emerald-500/20 text-crypto-buy border border-emerald-500/30';
+              sBadge.innerText = `+${diffSell.toFixed(2)} C$ más caro`;
+            } else {
+              sBadge.className = 'badge bg-slate-800 text-slate-300';
+              sBadge.innerText = `${diffSell.toFixed(2)} C$ bajo prom.`;
+            }
+          }
         }
 
-        // Spread
-        if (data.best_buy && data.best_sell) {
-          const spread = data.best_sell.price - data.best_buy.price;
-          const spreadPct = (spread / data.best_buy.price) * 100;
-          document.getElementById('kpi-spread').innerText = spread.toFixed(2);
-          document.getElementById('kpi-spread-pct').innerText = `Margen estimado: ${spreadPct.toFixed(2)}%`;
-        }
+        renderTablasFiltradas();
 
-        // Render Anuncios Tablas
-        renderTablaAnuncios('table-buy-body', data.buy_ads || []);
-        renderTablaAnuncios('table-sell-body', data.sell_ads || []);
-        document.getElementById('count-buy-ads').innerText = `${(data.buy_ads || []).length} anuncios`;
-        document.getElementById('count-sell-ads').innerText = `${(data.sell_ads || []).length} anuncios`;
-
-      } catch (e) {
-        console.error('Error live:', e);
+      } catch (err) {
+        console.error('Error al cargar mercado en vivo:', err);
       }
     }
 
-    function renderTablaAnuncios(elementId, ads) {
-      const tbody = document.getElementById(elementId);
+    function actualizarMatchMaker(match) {
+      if (!match) return;
+
+      document.getElementById('match-buy-price').innerHTML = `${match.buy_price.toFixed(2)} <span class="text-xs font-normal text-slate-400">NIO</span>`;
+      document.getElementById('match-buy-merchant').innerText = `Comerciante: ${match.buy_merchant}`;
+      document.getElementById('match-buy-limits').innerText = `C$${match.buy_min_limit.toLocaleString()} - C$${match.buy_max_limit.toLocaleString()}`;
+      document.getElementById('match-buy-banks').innerText = match.buy_payment_methods.slice(0, 2).join(', ');
+      document.getElementById('match-buy-link').href = match.buy_link;
+      document.getElementById('match-usdt-obtained').innerText = `${match.usdt_obtained} USDT`;
+
+      document.getElementById('match-sell-price').innerHTML = `${match.sell_price.toFixed(2)} <span class="text-xs font-normal text-slate-400">NIO</span>`;
+      document.getElementById('match-sell-merchant').innerText = `Comerciante: ${match.sell_merchant}`;
+      document.getElementById('match-sell-limits').innerText = `C$${match.sell_min_limit.toLocaleString()} - C$${match.sell_max_limit.toLocaleString()}`;
+      document.getElementById('match-sell-banks').innerText = match.sell_payment_methods.slice(0, 2).join(', ');
+      document.getElementById('match-sell-link').href = match.sell_link;
+      document.getElementById('match-fiat-returned').innerText = `C$${match.fiat_returned.toLocaleString()}`;
+
+      // Center profit card
+      const profitEl = document.getElementById('match-net-profit');
+      const roiEl = document.getElementById('match-net-roi');
+      const badgeStatus = document.getElementById('match-badge-status');
+      const profitBadge = document.getElementById('profit-badge-container');
+
+      if (match.is_profitable) {
+        profitEl.innerText = `+C$ ${match.net_profit_fiat.toLocaleString()}`;
+        profitEl.className = 'text-3xl font-black font-mono tracking-tight text-crypto-buy';
+        roiEl.innerText = `+${match.net_profit_pct}% ROI NETO`;
+        roiEl.className = 'text-xs font-bold font-mono text-emerald-400';
+        badgeStatus.className = 'badge bg-emerald-500/20 text-crypto-buy border border-emerald-500/30 animate-pulse';
+        badgeStatus.innerText = '¡Arbitraje Rentable Detectado!';
+        profitBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-black uppercase mb-3 bg-emerald-500/20 text-crypto-buy border border-emerald-500/30';
+        profitBadge.innerText = 'Ganancia Neta Disponible';
+      } else {
+        profitEl.innerText = `C$ ${match.net_profit_fiat.toLocaleString()}`;
+        profitEl.className = 'text-3xl font-black font-mono tracking-tight text-slate-300';
+        roiEl.innerText = `${match.net_profit_pct}% Spread`;
+        roiEl.className = 'text-xs font-bold font-mono text-slate-400';
+        badgeStatus.className = 'badge bg-slate-800 text-slate-400';
+        badgeStatus.innerText = 'Monitoreando Spread';
+        profitBadge.className = 'inline-block px-3 py-1 rounded-full text-xs font-black uppercase mb-3 bg-slate-800 text-slate-300';
+        profitBadge.innerText = 'Spread Regular';
+      }
+
+      document.getElementById('match-gross-spread').innerText = `C$ ${match.gross_spread.toFixed(2)} NIO`;
+      document.getElementById('match-common-banks').innerText = match.common_payment_methods.length > 0 
+        ? match.common_payment_methods.join(', ')
+        : 'Distintos bancos';
+      document.getElementById('match-recommendation').innerText = match.recommendation;
+    }
+
+    function setPresupuesto(monto) {
+      document.getElementById('sim-budget-input').value = monto;
+      recalcularArbitraje();
+    }
+
+    function recalcularArbitraje() {
+      cargarMercadoEnVivo();
+    }
+
+    function filtrarPorBanco(banco) {
+      activeBankFilter = banco;
+      document.querySelectorAll('.btn-bank').forEach(b => {
+        if (b.getAttribute('data-bank') === banco) {
+          b.className = 'btn-bank text-xs px-2.5 py-1 rounded-lg bg-crypto-accent text-slate-950 font-bold';
+        } else {
+          b.className = 'btn-bank text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white';
+        }
+      });
+      renderTablasFiltradas();
+    }
+
+    function renderTablasFiltradas() {
+      let bAds = currentRawBuyAds;
+      let sAds = currentRawSellAds;
+
+      if (activeBankFilter) {
+        bAds = bAds.filter(a => a.payment_methods.some(m => m.toLowerCase().includes(activeBankFilter.toLowerCase())));
+        sAds = sAds.filter(a => a.payment_methods.some(m => m.toLowerCase().includes(activeBankFilter.toLowerCase())));
+      }
+
+      renderTabla('tbody-buy-ads', bAds, true);
+      renderTabla('tbody-sell-ads', sAds, false);
+      document.getElementById('count-buy-table').innerText = `${bAds.length} anuncios`;
+      document.getElementById('count-sell-table').innerText = `${sAds.length} anuncios`;
+    }
+
+    function renderTabla(tbodyId, ads, isBuy) {
+      const tbody = document.getElementById(tbodyId);
       if (!ads || ads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-3 text-center text-gray-500">No hay anuncios disponibles bajo este filtro.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500">No se encontraron anuncios para este filtro.</td></tr>';
         return;
       }
-      tbody.innerHTML = ads.map(a => {
-        const methods = a.payment_methods.map(m => `<span class="badge bg-gray-800 text-gray-300 border border-gray-700 mr-1 mb-1">${m}</span>`).join('');
-        const badgeVerified = a.is_verified_merchant ? '<span class="text-yellow-400 font-bold ml-1" title="Verificado">✓</span>' : '';
+
+      tbody.innerHTML = ads.slice(0, 10).map((a, idx) => {
+        const methods = a.payment_methods.map(m => `<span class="badge bg-slate-900 text-slate-300 border border-slate-700/60 mr-1 mb-1">${m}</span>`).join('');
+        const badgeVerified = a.is_verified_merchant ? '<span class="text-amber-400 font-bold ml-1" title="Comerciante Verificado">✓</span>' : '';
+        const priceColor = isBuy ? 'text-crypto-buy' : 'text-crypto-sell';
+
         return `
-          <tr class="hover:bg-gray-800/40 transition">
+          <tr class="hover:bg-slate-800/40 transition">
             <td class="py-2.5">
-              <span class="font-medium text-white">${a.merchant_name}${badgeVerified}</span>
-              <span class="block text-[10px] text-gray-500">${a.finish_rate_pct}% (${a.month_orders} órdenes)</span>
+              <span class="font-bold text-white text-xs">${idx + 1}. ${a.merchant_name}${badgeVerified}</span>
+              <span class="block text-[10px] text-slate-400 font-sans">${a.finish_rate_pct}% (${a.month_orders} ord.)</span>
             </td>
-            <td class="py-2.5 font-bold font-mono text-white text-sm">C$${a.price.toFixed(2)}</td>
-            <td class="py-2.5 text-gray-300 font-mono text-[11px]">
+            <td class="py-2.5 font-bold ${priceColor} text-sm">
+              C$${a.price.toFixed(2)}
+            </td>
+            <td class="py-2.5 text-slate-300 text-[11px]">
               C$${a.min_limit.toLocaleString()} - C$${a.max_limit.toLocaleString()}
-              <span class="block text-[10px] text-blue-400">Sugerido: C$${a.suggested_amount_fiat.toLocaleString()} (~${a.suggested_amount_asset} USDT)</span>
             </td>
-            <td class="py-2.5">${methods}</td>
+            <td class="py-2.5 font-sans">${methods}</td>
+            <td class="py-2.5 text-right font-sans">
+              <a href="${a.link || 'https://p2p.binance.com'}" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition border border-slate-700">
+                Operar
+              </a>
+            </td>
           </tr>
         `;
       }).join('');
@@ -440,60 +793,81 @@
         if (!res.ok) return;
         const p = await res.json();
 
-        // Buy & Sell analysis
+        // Buy Side Analysis
         const buySide = p.buy_analysis || {};
-        const trendEl = document.getElementById('pred-trend');
+        const trendEl = document.getElementById('kpi-trend');
         trendEl.innerText = buySide.trend || 'LATERAL';
         if (buySide.trend === 'ALCISTA') {
-          trendEl.className = 'badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+          trendEl.className = 'badge bg-emerald-500/20 text-crypto-buy border border-emerald-500/30';
         } else if (buySide.trend === 'BAJISTA') {
-          trendEl.className = 'badge bg-rose-500/20 text-rose-400 border border-rose-500/30';
+          trendEl.className = 'badge bg-rose-500/20 text-crypto-sell border border-rose-500/30';
         } else {
-          trendEl.className = 'badge bg-gray-800 text-gray-300 border border-gray-700';
+          trendEl.className = 'badge bg-slate-800 text-slate-300';
         }
 
-        document.getElementById('pred-zscore').innerText = buySide.z_score !== undefined ? buySide.z_score : '--';
-        document.getElementById('pred-proj-30').innerText = buySide.projected_next_30m ? `C$${buySide.projected_next_30m}` : '--';
-        document.getElementById('pred-proj-60').innerText = buySide.projected_next_60m ? `C$${buySide.projected_next_60m}` : '--';
-        document.getElementById('pred-recommendation').innerText = buySide.recommendation || 'Sin recomendación aún.';
+        document.getElementById('kpi-proj-30m').innerText = buySide.projected_next_30m ? buySide.projected_next_30m.toFixed(2) : '--.--';
+        document.getElementById('kpi-proj-60m').innerText = buySide.projected_next_60m ? `${buySide.projected_next_60m.toFixed(2)} NIO` : '--.--';
+        document.getElementById('kpi-zscore').innerText = buySide.z_score !== undefined ? buySide.z_score : '--';
 
-        // Patrones Horarios
+        // Time patterns & Arbitrage Window
         if (p.time_patterns) {
           const tp = p.time_patterns;
-          const buyHoursDiv = document.getElementById('best-buy-hours');
-          const sellHoursDiv = document.getElementById('best-sell-hours');
+          const win = tp.best_arbitrage_window;
 
-          buyHoursDiv.innerHTML = tp.best_hours_to_buy.length > 0 
-            ? tp.best_hours_to_buy.map(h => `<span class="badge bg-emerald-950 text-emerald-300 border border-emerald-800">${h}</span>`).join('')
-            : '<span class="text-gray-500">Recopilando datos...</span>';
+          if (win) {
+            document.getElementById('window-buy-hour').innerText = win.best_buy_hour;
+            document.getElementById('window-buy-price').innerText = `Precio prom: C$ ${win.avg_buy_price.toFixed(2)}`;
+            document.getElementById('window-sell-hour').innerText = win.best_sell_hour;
+            document.getElementById('window-sell-price').innerText = `Precio prom: C$ ${win.avg_sell_price.toFixed(2)}`;
+            document.getElementById('window-spread').innerText = `+C$ ${win.expected_spread.toFixed(2)}`;
+            document.getElementById('window-roi').innerText = `+${win.expected_roi_pct}% ROI`;
+            document.getElementById('window-insight').innerText = win.insight;
+          }
 
-          sellHoursDiv.innerHTML = tp.best_hours_to_sell.length > 0 
-            ? tp.best_hours_to_sell.map(h => `<span class="badge bg-rose-950 text-rose-300 border border-rose-800">${h}</span>`).join('')
-            : '<span class="text-gray-500">Recopilando datos...</span>';
+          // Hourly Matrix 24 bars
+          const matrixContainer = document.getElementById('hourly-matrix-bars');
+          if (tp.hourly_patterns && tp.hourly_patterns.length > 0) {
+            matrixContainer.innerHTML = tp.hourly_patterns.map(h => {
+              const isBestBuy = tp.best_hours_to_buy.includes(h.hour_label);
+              const isBestSell = tp.best_hours_to_sell.includes(h.hour_label);
+              let colorClass = 'bg-slate-900 border-slate-800 text-slate-400';
+              if (isBestBuy) colorClass = 'bg-emerald-950/80 border-emerald-500 text-crypto-buy font-bold';
+              if (isBestSell) colorClass = 'bg-rose-950/80 border-rose-500 text-crypto-sell font-bold';
 
-          document.getElementById('time-insight').innerText = tp.summary_insight || '';
+              return `
+                <div class="p-1 rounded border ${colorClass}" title="${h.hour_label}: Compra C$${h.avg_buy_price || '--'} | Venta C$${h.avg_sell_price || '--'}">
+                  <div>${h.hour_local}h</div>
+                  <div class="text-[9px] opacity-75">${h.sample_count}ops</div>
+                </div>
+              `;
+            }).join('');
+          }
 
-          // Payment methods
-          const pmList = document.getElementById('payment-methods-list');
+          // Payment Methods
+          const pmContainer = document.getElementById('payment-methods-container');
           if (tp.popular_payment_methods && tp.popular_payment_methods.length > 0) {
-            pmList.innerHTML = tp.popular_payment_methods.map(m => `
-              <div class="flex items-center justify-between p-2 rounded bg-gray-950 border border-gray-800">
-                <span class="font-medium text-gray-300">${m.method}</span>
-                <span class="text-gray-400 font-mono text-[11px]">${m.frequency} ops (Límites: C$${m.avg_min_limit.toLocaleString()} - C$${m.avg_max_limit.toLocaleString()})</span>
+            pmContainer.innerHTML = tp.popular_payment_methods.map(m => `
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
+                <div>
+                  <span class="font-bold text-slate-200 block">${m.method}</span>
+                  <span class="text-[10px] text-slate-400 font-mono">Límites: C$${m.avg_min_limit.toLocaleString()} - C$${m.avg_max_limit.toLocaleString()}</span>
+                </div>
+                <span class="badge bg-slate-800 text-sky-400 font-mono">${m.frequency} ops</span>
               </div>
             `).join('');
           }
         }
-      } catch (e) {
-        console.error('Error pred:', e);
+
+      } catch (err) {
+        console.error('Error al cargar predicciones:', err);
       }
     }
 
     async function cargarHistorial() {
       try {
         const [resBuy, resSell] = await Promise.all([
-          fetch(`${API_BASE}/history/NIO?trade_type=BUY&limit=30`),
-          fetch(`${API_BASE}/history/NIO?trade_type=SELL&limit=30`)
+          fetch(`${API_BASE}/history/NIO?trade_type=BUY&limit=40`),
+          fetch(`${API_BASE}/history/NIO?trade_type=SELL&limit=40`)
         ]);
         const buyData = await resBuy.json();
         const sellData = await resSell.json();
@@ -502,14 +876,14 @@
         const buyPrices = buyData.map(d => d.best_price);
         const sellPrices = sellData.map(d => d.best_price);
 
-        renderGrafica(labels, buyPrices, sellPrices);
-      } catch (e) {
-        console.error('Error history:', e);
+        renderHistoricalChart(labels, buyPrices, sellPrices);
+      } catch (err) {
+        console.error('Error al cargar historial:', err);
       }
     }
 
-    function renderGrafica(labels, buyPrices, sellPrices) {
-      const ctx = document.getElementById('priceChart').getContext('2d');
+    function renderHistoricalChart(labels, buyPrices, sellPrices) {
+      const ctx = document.getElementById('historicalChart').getContext('2d');
       if (chartInstance) {
         chartInstance.destroy();
       }
@@ -521,18 +895,22 @@
             {
               label: 'Compra (BUY)',
               data: buyPrices,
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              tension: 0.3,
-              fill: true
+              borderColor: '#00f5a0',
+              backgroundColor: 'rgba(0, 245, 160, 0.08)',
+              borderWidth: 2,
+              tension: 0.35,
+              fill: true,
+              pointRadius: 2
             },
             {
               label: 'Venta (SELL)',
               data: sellPrices,
-              borderColor: '#f43f5e',
-              backgroundColor: 'rgba(244, 63, 94, 0.1)',
-              tension: 0.3,
-              fill: true
+              borderColor: '#ff3366',
+              backgroundColor: 'rgba(255, 51, 102, 0.08)',
+              borderWidth: 2,
+              tension: 0.35,
+              fill: true,
+              pointRadius: 2
             }
           ]
         },
@@ -540,11 +918,11 @@
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { labels: { color: '#9ca3af', font: { size: 11 } } }
+            legend: { display: false }
           },
           scales: {
-            x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1f2937' } },
-            y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1f2937' } }
+            x: { ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } }, grid: { color: '#1e293b' } },
+            y: { ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } }, grid: { color: '#1e293b' } }
           }
         }
       });
@@ -556,69 +934,20 @@
         if (!res.ok) return;
         const rules = await res.json();
         const nio = rules['NIO'] || {};
-        document.getElementById('rule-buy-target').innerText = nio.buy_target ? `C$${nio.buy_target.toFixed(2)}` : '--';
-        document.getElementById('rule-sell-target').innerText = nio.sell_target ? `C$${nio.sell_target.toFixed(2)}` : '--';
-        document.getElementById('rule-budget').innerText = nio.budget ? `C$${nio.budget.toLocaleString()}` : '--';
 
-        document.getElementById('input-buy-target').value = nio.buy_target || 36.80;
-        document.getElementById('input-sell-target').value = nio.sell_target || 40.00;
-        document.getElementById('input-budget').value = nio.budget || 2000.0;
-      } catch (e) {
-        console.error('Error rules:', e);
-      }
-    }
-
-    async function cargarAlertas() {
-      try {
-        const res = await fetch(`${API_BASE}/alerts?limit=10`);
-        if (!res.ok) return;
-        const alerts = await res.json();
-        const tbody = document.getElementById('table-alerts-body');
-        if (alerts.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">No se han disparado alertas aún (los precios actuales no han cruzado tus objetivos).</td></tr>';
-          return;
-        }
-
-        tbody.innerHTML = alerts.map(a => `
-          <tr class="hover:bg-gray-800/40">
-            <td class="py-2.5 text-gray-400 font-mono text-[11px]">${new Date(a.timestamp).toLocaleString('es-NI')}</td>
-            <td class="py-2.5 font-bold ${a.signal_type === 'BUY_LOW' ? 'text-emerald-400' : 'text-rose-400'}">${a.signal_type}</td>
-            <td class="py-2.5 font-mono text-white font-bold">C$${a.price.toFixed(2)}</td>
-            <td class="py-2.5 text-gray-300"><span class="badge bg-gray-800 text-blue-400">${a.channels_sent}</span></td>
-            <td class="py-2.5 text-gray-400 text-[11px] max-w-xs truncate" title="${a.message}">${a.message}</td>
-          </tr>
-        `).join('');
-      } catch (e) {
-        console.error('Error alerts:', e);
-      }
-    }
-
-    async function escanearMercado() {
-      const btn = document.getElementById('btn-scan');
-      btn.disabled = true;
-      btn.classList.add('opacity-50');
-      try {
-        const res = await fetch(`${API_BASE}/monitor/run`, { method: 'POST' });
-        const data = await res.json();
-        await cargarTodo();
-        const summaryNio = data.summary?.NIO;
-        if (summaryNio && summaryNio.alerts_triggered && summaryNio.alerts_triggered.length > 0) {
-          document.getElementById('alert-banner').classList.remove('hidden');
-          document.getElementById('alert-banner-text').innerText = `¡Se dispararon ${summaryNio.alerts_triggered.length} alerta(s) de oportunidad!`;
-        }
-      } catch (e) {
-        console.error('Error scan:', e);
-      } finally {
-        btn.disabled = false;
-        btn.classList.remove('opacity-50');
+        document.getElementById('cfg-buy-target').value = nio.buy_target || 36.80;
+        document.getElementById('cfg-sell-target').value = nio.sell_target || 40.00;
+        document.getElementById('cfg-budget').value = nio.budget || 5000.0;
+      } catch (err) {
+        console.error('Error al cargar reglas:', err);
       }
     }
 
     async function guardarReglas(e) {
       e.preventDefault();
-      const buy_target = parseFloat(document.getElementById('input-buy-target').value);
-      const sell_target = parseFloat(document.getElementById('input-sell-target').value);
-      const budget = parseFloat(document.getElementById('input-budget').value);
+      const buy_target = parseFloat(document.getElementById('cfg-buy-target').value);
+      const sell_target = parseFloat(document.getElementById('cfg-sell-target').value);
+      const budget = parseFloat(document.getElementById('cfg-budget').value);
 
       if (buy_target >= sell_target) {
         alert('El precio de compra barata debe ser MENOR que el precio de venta cara.');
@@ -640,27 +969,76 @@
         });
         if (res.ok) {
           cerrarConfigModal();
-          await cargarReglas();
-        } else {
-          alert('Error al guardar las reglas.');
+          await cargarTodo();
+          alert('¡Parámetros actualizados correctamente!');
         }
       } catch (err) {
         alert('Error al conectar con el servidor.');
       }
     }
 
-    function abrirConfigModal() { document.getElementById('modal-config').classList.remove('hidden'); }
-    function cerrarConfigModal() { document.getElementById('modal-config').classList.add('hidden'); }
+    async function cargarAlertas() {
+      try {
+        const res = await fetch(`${API_BASE}/alerts?limit=10`);
+        if (!res.ok) return;
+        const alerts = await res.json();
+        const tbody = document.getElementById('tbody-alerts');
+
+        if (!alerts || alerts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-slate-500 font-sans">No se han disparado alertas aún (el mercado se encuentra dentro de los rangos normales).</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = alerts.map(a => {
+          let signalBadge = 'bg-slate-800 text-slate-300';
+          if (a.signal_type.includes('ARBITRAGE')) signalBadge = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          else if (a.signal_type.includes('BUY')) signalBadge = 'bg-emerald-500/20 text-crypto-buy border border-emerald-500/30';
+          else if (a.signal_type.includes('SELL')) signalBadge = 'bg-rose-500/20 text-crypto-sell border border-rose-500/30';
+
+          return `
+            <tr class="hover:bg-slate-800/40">
+              <td class="py-2.5 font-mono text-[11px] text-slate-400">${new Date(a.timestamp).toLocaleString('es-NI')}</td>
+              <td class="py-2.5"><span class="badge ${signalBadge}">${a.signal_type}</span></td>
+              <td class="py-2.5 font-mono font-bold text-white">C$${a.price.toFixed(2)}</td>
+              <td class="py-2.5"><span class="badge bg-slate-900 text-sky-400 border border-slate-700">${a.channels_sent}</span></td>
+              <td class="py-2.5 text-[11px] text-slate-300 max-w-sm truncate font-sans" title="${a.message}">${a.message}</td>
+            </tr>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error('Error al cargar alertas:', err);
+      }
+    }
+
+    async function escanearMercado() {
+      const btn = document.getElementById('btn-scan');
+      const icon = document.getElementById('icon-refresh');
+      btn.disabled = true;
+      icon.classList.add('animate-spin');
+
+      try {
+        await fetch(`${API_BASE}/monitor/run`, { method: 'POST' });
+        await cargarTodo();
+      } catch (err) {
+        console.error('Error scan:', err);
+      } finally {
+        btn.disabled = false;
+        icon.classList.remove('animate-spin');
+      }
+    }
 
     function cambiarIntervalo() {
-      const ms = parseInt(document.getElementById('auto-refresh').value);
+      const ms = parseInt(document.getElementById('select-refresh').value);
       if (timerId) clearInterval(timerId);
       if (ms > 0) {
         timerId = setInterval(cargarTodo, ms);
       }
     }
 
-    // Inicializar al cargar la página
+    function abrirConfigModal() { document.getElementById('modal-config').classList.remove('hidden'); }
+    function cerrarConfigModal() { document.getElementById('modal-config').classList.add('hidden'); }
+
     window.onload = () => {
       cargarTodo();
       cambiarIntervalo();
@@ -668,4 +1046,3 @@
   </script>
 </body>
 </html>
-
