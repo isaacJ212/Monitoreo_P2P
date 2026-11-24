@@ -82,7 +82,12 @@ async def fetch_p2p_ads(
         suggested_fiat = _calculate_suggested_amount(min_limit, max_limit, budget)
         suggested_asset = round(suggested_fiat / price, 2)
         adv_no = str(adv.get("advNo", ""))
-        direct_link = f"https://p2p.binance.com/es/trade/all-payments/{clean_asset}?fiat={clean_fiat}"
+        user_no = str(advertiser.get("userNo", ""))
+        merchant_link = (
+            f"https://p2p.binance.com/es/advertiserDetail?userNo={user_no}"
+            if user_no
+            else f"https://p2p.binance.com/es/trade/{clean_trade.lower()}/{clean_asset}?fiat={clean_fiat}"
+        )
 
         filtered_ads.append(
             AdDetail(
@@ -95,10 +100,12 @@ async def fetch_p2p_ads(
                 available_asset=available,
                 payment_methods=methods,
                 merchant_name=advertiser.get("nickName", "Anónimo"),
+                merchant_user_no=user_no,
+                merchant_link=merchant_link,
                 month_orders=month_orders,
                 finish_rate_pct=round(finish_rate * 100, 2),
                 is_verified_merchant=(advertiser.get("userType") == "merchant"),
-                link=direct_link,
+                link=merchant_link,
             )
         )
 

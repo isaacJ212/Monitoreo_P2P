@@ -36,9 +36,17 @@
     .clickable-row:hover {
       background-color: rgba(30, 41, 59, 0.6);
     }
-    .selected-row {
-      background-color: rgba(59, 130, 246, 0.2) !important;
-      border-left: 3px solid #3b82f6;
+    .selected-buy {
+      background-color: rgba(16, 185, 129, 0.18) !important;
+      border-left: 4px solid #10b981 !important;
+    }
+    .selected-sell {
+      background-color: rgba(244, 63, 94, 0.18) !important;
+      border-left: 4px solid #f43f5e !important;
+    }
+    .matched-pair-row {
+      background-color: rgba(245, 158, 11, 0.18) !important;
+      border-left: 4px solid #f59e0b !important;
     }
   </style>
 </head>
@@ -55,7 +63,7 @@
           <h1 class="text-base font-bold text-white flex items-center gap-2">
             Monitor P2P Nicaragua <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-mono">USDT / NIO</span>
           </h1>
-          <p class="text-xs text-gray-400">Calculador de arbitraje por banco coincidente y predicción de horarios</p>
+          <p class="text-xs text-gray-400">Arbitraje por banco coincidente, top 3 jugadas ganadoras y predicción</p>
         </div>
       </div>
 
@@ -80,13 +88,13 @@
   <!-- CONTENEDOR PRINCIPAL DIVIDIDO EN 5 SECCIONES CLARAS -->
   <main class="max-w-6xl mx-auto px-4 py-6 space-y-8 flex-1 w-full">
 
-    <!-- SECCIÓN 1: TU CAPITAL Y JUGADA GANADORA -->
+    <!-- SECCIÓN 1: TU CAPITAL Y TOP 3 JUGADAS GANADORAS -->
     <section class="space-y-3">
       <div class="flex items-center justify-between">
         <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-          <span>1️⃣</span> Tu Capital Disponible & Jugada Ganadora
+          <span>1️⃣</span> Tu Capital & Top 3 Jugadas Ganadoras de Arbitraje
         </h2>
-        <span id="badge-match-mode" class="text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded border border-gray-700">Modo: Mejor Match Automático</span>
+        <span id="badge-match-mode" class="text-xs bg-gray-800 text-gray-300 px-2.5 py-1 rounded border border-gray-700">Top 3 Opciones Rentables</span>
       </div>
 
       <div class="box-clean p-6 border-amber-500/40 bg-gradient-to-b from-gray-900 to-gray-950 shadow-xl space-y-5">
@@ -95,7 +103,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-950 p-4 rounded-xl border border-gray-800">
           <div>
             <label class="block text-xs font-bold text-gray-300">¿Cuánto dinero (Córdobas) tienes para operar?</label>
-            <p class="text-[11px] text-gray-500">El sistema calcula tu ganancia exacta y verifica que los límites del banco coincidan</p>
+            <p class="text-[11px] text-gray-500">Calcula tu ganancia exacta y verifica la compatibilidad de límites en vivo</p>
           </div>
           <div class="flex items-center gap-2">
             <div class="relative">
@@ -106,91 +114,57 @@
               <button onclick="setCapital(2000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">2K</button>
               <button onclick="setCapital(5000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">5K</button>
               <button onclick="setCapital(10000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">10K</button>
+              <button onclick="setCapital(20000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">20K</button>
             </div>
           </div>
         </div>
 
-        <!-- Banner de Selección Manual (si se seleccionó un anuncio) -->
-        <div id="banner-manual-selection" class="hidden p-3 rounded-lg bg-blue-950/60 border border-blue-500/40 flex items-center justify-between text-xs text-blue-200">
-          <span id="txt-manual-selection">Mostrando match para el anuncio seleccionado...</span>
-          <button onclick="resetearMatchAutomatico()" class="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded text-[11px] font-bold">
-            Volver a Mejor Match Automático
-          </button>
-        </div>
-
-        <!-- Tarjetas del Match Ganador -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
-          
-          <!-- PASO 1: COMPRA -->
-          <div class="bg-gray-950 p-4 rounded-xl border border-emerald-900/40 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-emerald-400 uppercase">1. Compras Barato</span>
-                <span class="bank-badge text-emerald-300 border-emerald-800 bg-emerald-950/80" id="card-buy-bank">BAC Credomatic</span>
-              </div>
-              <p class="text-2xl font-black font-mono text-white mt-2" id="card-buy-price">--.-- <span class="text-xs font-normal text-gray-400">NIO</span></p>
-              <p class="text-xs text-gray-200 mt-1 font-semibold" id="card-buy-merchant">Comerciante: --</p>
-              <p class="text-[11px] text-gray-400 mt-1" id="card-buy-limits">Límites: C$ -- a C$ --</p>
-              <p class="text-xs text-blue-400 font-mono mt-2" id="card-buy-usdt">Recibes: <b>0.00 USDT</b></p>
-            </div>
-            <div class="mt-4 pt-3 border-t border-gray-800">
-              <a id="link-buy-binance" href="https://p2p.binance.com" target="_blank" class="block w-full text-center py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-gray-950 font-bold text-xs transition">
-                Comprar en Binance &rarr;
-              </a>
-            </div>
+        <!-- CONTENEDOR DE LAS 3 JUGADAS GANADORAS -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Las 3 Mejores Estrategias con tu Capital:</span>
+            <span class="text-[11px] text-emerald-400 font-medium">Bancos coincidentes verificados</span>
           </div>
 
-          <!-- RESULTADO DE GANANCIA -->
-          <div class="bg-gray-900 p-5 rounded-xl border border-gray-700/80 flex flex-col justify-between text-center">
-            <div>
-              <span class="text-xs font-bold text-amber-400 uppercase tracking-wider block">Tu Ganancia Neta</span>
-              <div class="my-3">
-                <span class="text-3xl font-black font-mono text-white" id="card-net-profit">+C$ 0.00</span>
-                <span class="block text-xs font-bold text-emerald-400 mt-1" id="card-net-roi">+0.00% de Ganancia</span>
-              </div>
-              <p class="text-xs text-gray-300" id="card-gain-unit">
-                Ganas: <b>+C$ 0.00</b> por cada USDT
-              </p>
-            </div>
-            <div class="text-[11px] text-gray-400 bg-gray-950 p-2.5 rounded-lg border border-gray-800 mt-3">
-              🏦 Banco en común: <b class="text-amber-300" id="card-common-bank">--</b>
+          <div id="container-top-plays" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+            <div class="bg-gray-950 p-5 rounded-xl border border-gray-800 text-center text-xs text-gray-500 py-12">
+              Cargando las mejores jugadas de arbitraje...
             </div>
           </div>
-
-          <!-- PASO 2: VENTA -->
-          <div class="bg-gray-950 p-4 rounded-xl border border-rose-900/40 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-rose-400 uppercase">2. Vendes Caro</span>
-                <span class="bank-badge text-rose-300 border-rose-800 bg-rose-950/80" id="card-sell-bank">BAC Credomatic</span>
-              </div>
-              <p class="text-2xl font-black font-mono text-white mt-2" id="card-sell-price">--.-- <span class="text-xs font-normal text-gray-400">NIO</span></p>
-              <p class="text-xs text-gray-200 mt-1 font-semibold" id="card-sell-merchant">Comerciante: --</p>
-              <p class="text-[11px] text-gray-400 mt-1" id="card-sell-limits">Límites: C$ -- a C$ --</p>
-              <p class="text-xs text-emerald-400 font-mono mt-2" id="card-sell-fiat">Cobras: <b>C$ 0.00 NIO</b></p>
-            </div>
-            <div class="mt-4 pt-3 border-t border-gray-800">
-              <a id="link-sell-binance" href="https://p2p.binance.com" target="_blank" class="block w-full text-center py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition">
-                Vender en Binance &rarr;
-              </a>
-            </div>
-          </div>
-
         </div>
 
         <p class="text-xs text-gray-300 bg-gray-950 p-3 rounded-lg border border-gray-800" id="card-match-insight">
-          Cargando análisis de mercado...
+          Cargando análisis de mercado en tiempo real...
         </p>
       </div>
     </section>
 
-    <!-- SECCIÓN 2: MERCADO EN VIVO (SELECCIÓN INTERACTIVA DE ANUNCIOS) -->
+    <!-- SECCIÓN 2: MERCADO EN VIVO Y EMPAREJAMIENTO INTERACTIVO -->
     <section class="space-y-3">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
         <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
           <span>2️⃣</span> Mercado en Vivo (Haz Clic en Cualquier Fila para Emparejar)
         </h2>
-        <span class="text-xs text-gray-400 font-sans">💡 Toca cualquier anuncio de compra o venta para ver su contraparte con el mismo banco</span>
+        <span class="text-xs text-gray-400 font-sans">💡 Toca cualquier fila para emparejarla al instante con su contraparte del mismo banco</span>
+      </div>
+
+      <!-- PANEL DE EMPAREJAMIENTO EN VIVO SELECCIONADO (DIRECTO SOBRE LAS TABLAS) -->
+      <div id="panel-interactive-match" class="p-4 rounded-xl border border-blue-500/40 bg-gradient-to-r from-blue-950/70 via-gray-900 to-blue-950/70 transition-all duration-300 shadow-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-xs text-blue-200">
+            <span class="text-lg">👆</span>
+            <div>
+              <b class="text-white">Emparejador Interactivo Activo:</b>
+              <span class="text-gray-300 ml-1">Haz clic en cualquier anuncio de compra (verde) o venta (rojo) abajo para ver su contraparte.</span>
+            </div>
+          </div>
+          <button id="btn-reset-match" onclick="resetearMatchAutomatico()" class="hidden bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3 py-1.5 rounded-lg border border-gray-700 transition">
+            ✖ Restaurar a Match Automático
+          </button>
+        </div>
+        <div id="interactive-match-details" class="hidden mt-3 pt-3 border-t border-blue-900/50">
+          <!-- Se inyecta dinámicamente -->
+        </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -215,10 +189,11 @@
                   <th class="pb-2">Precio (NIO)</th>
                   <th class="pb-2">Límites Min - Max</th>
                   <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Binance</th>
                 </tr>
               </thead>
               <tbody id="tbody-buys" class="divide-y divide-gray-800/60 font-mono">
-                <tr><td colspan="4" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
+                <tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
               </tbody>
             </table>
           </div>
@@ -244,10 +219,11 @@
                   <th class="pb-2">Precio (NIO)</th>
                   <th class="pb-2">Límites Min - Max</th>
                   <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Binance</th>
                 </tr>
               </thead>
               <tbody id="tbody-sells" class="divide-y divide-gray-800/60 font-mono">
-                <tr><td colspan="4" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
+                <tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
               </tbody>
             </table>
           </div>
@@ -385,30 +361,50 @@
 
   </main>
 
-  <!-- MODAL CONFIGURACIÓN DE METAS -->
+  <!-- MODAL CONFIGURACIÓN DE METAS INTELIGENTES -->
   <div id="modal-rules" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
     <div class="box-clean max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-700">
       <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-        <h3 class="text-sm font-bold text-white">⚙️ Configurar Mis Alertas de Precio</h3>
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+            <span>⚙️</span> Configurar Metas de Precio
+          </h3>
+          <p class="text-[11px] text-gray-400">Alertas automáticas por WhatsApp y Correo</p>
+        </div>
         <button onclick="cerrarConfigModal()" class="text-gray-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <!-- BOTÓN DE AUTO-CÁLCULO INTELIGENTE -->
+      <div class="bg-indigo-950/60 p-3.5 rounded-xl border border-indigo-500/30 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-indigo-300 flex items-center gap-1">
+            <span>🤖</span> Calibración Estadística Inteligente
+          </span>
+          <button type="button" onclick="autoCalcularMetasInteligentes()" id="btn-smart-calc" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] px-2.5 py-1 rounded transition">
+            Auto-Calcular Ahora
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-300" id="txt-smart-insight">
+          Calcula automáticamente los precios óptimos de compra y venta según los percentiles históricos reales de Nicaragua.
+        </p>
       </div>
 
       <form onsubmit="guardarReglas(event)" class="space-y-4 text-xs">
         <div>
-          <label class="block text-gray-300 font-medium mb-1">Avisarme si la COMPRA cae de (NIO):</label>
+          <label class="block text-gray-300 font-medium mb-1">Avisarme si la COMPRA cae a &le; (NIO):</label>
           <input type="number" step="0.01" id="cfg-buy" required class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[11px]">Ej: 36.80. Si alguien vende a C$ 36.80 o menos, te llega el mensaje.</span>
+          <span class="text-gray-500 text-[11px]">Si alguien vende USDT a este precio o menos, se dispara la alerta.</span>
         </div>
 
         <div>
-          <label class="block text-gray-300 font-medium mb-1">Avisarme si la VENTA sube de (NIO):</label>
+          <label class="block text-gray-300 font-medium mb-1">Avisarme si la VENTA sube a &ge; (NIO):</label>
           <input type="number" step="0.01" id="cfg-sell" required class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[11px]">Ej: 37.50. Si alguien compra a C$ 37.50 o más, te llega el mensaje.</span>
+          <span class="text-gray-500 text-[11px]">Si alguien compra USDT a este precio o más, se dispara la alerta.</span>
         </div>
 
         <div class="pt-3 flex justify-end gap-2 border-t border-gray-800">
           <button type="button" onclick="cerrarConfigModal()" class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold">Guardar</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold">Guardar Metas</button>
         </div>
       </form>
     </div>
@@ -422,6 +418,7 @@
     let rawLiveSells = [];
     let historyPoints = [];
     let autoMatch = null;
+    let topMatchesList = [];
     let selectedManualBuy = null;
     let selectedManualSell = null;
     const API = '/api/v1';
@@ -457,10 +454,20 @@
         rawLiveBuys = data.buy_ads || [];
         rawLiveSells = data.sell_ads || [];
         autoMatch = data.arbitrage_match;
+        topMatchesList = (autoMatch && autoMatch.top_matches) || [];
 
-        // Si no hay selección manual, mostrar el match automático
+        // Si top_matches está vacío, agregar el autoMatch
+        if (topMatchesList.length === 0 && autoMatch) {
+          topMatchesList = [autoMatch];
+        }
+
+        // Renderizar las 3 jugadas ganadoras
+        renderTop3Plays(topMatchesList, capital);
+
+        // Si no hay selección manual activa, mantener panel de emparejamiento interactivo en reposo
         if (!selectedManualBuy && !selectedManualSell) {
-          mostrarMatch(autoMatch);
+          document.getElementById('btn-reset-match').classList.add('hidden');
+          document.getElementById('interactive-match-details').classList.add('hidden');
         } else {
           recalcularMatchSeleccionado();
         }
@@ -474,205 +481,317 @@
       }
     }
 
-    function mostrarMatch(m) {
-      if (!m) return;
-      const capital = parseFloat(document.getElementById('input-user-capital').value) || 5000;
-
-      // Calcular montos con el capital del usuario
-      const buyPrice = m.buy_price;
-      const sellPrice = m.sell_price;
-      const usdt = (capital / buyPrice).toFixed(2);
-      const fiatBack = (usdt * sellPrice).toFixed(2);
-      const netGain = (fiatBack - capital).toFixed(2);
-      const roi = (((fiatBack - capital) / capital) * 100).toFixed(2);
-      const gainPerUsdt = (sellPrice - buyPrice).toFixed(2);
-
-      document.getElementById('card-buy-bank').innerText = m.matched_bank;
-      document.getElementById('card-sell-bank').innerText = m.matched_bank;
-      document.getElementById('card-common-bank').innerText = m.matched_bank;
-
-      document.getElementById('card-buy-price').innerHTML = `C$ ${buyPrice.toFixed(2)} <span class="text-xs text-gray-400">NIO</span>`;
-      document.getElementById('card-buy-merchant').innerText = `Comerciante: ${m.buy_merchant}`;
-      document.getElementById('card-buy-limits').innerText = `Límites: C$ ${m.buy_min_limit.toLocaleString()} a C$ ${m.buy_max_limit.toLocaleString()}`;
-      document.getElementById('card-buy-usdt').innerHTML = `Recibes: <b>${usdt} USDT</b>`;
-      document.getElementById('link-buy-binance').href = m.buy_link;
-
-      document.getElementById('card-sell-price').innerHTML = `C$ ${sellPrice.toFixed(2)} <span class="text-xs text-gray-400">NIO</span>`;
-      document.getElementById('card-sell-merchant').innerText = `Comerciante: ${m.sell_merchant}`;
-      document.getElementById('card-sell-limits').innerText = `Límites: C$ ${m.sell_min_limit.toLocaleString()} a C$ ${m.sell_max_limit.toLocaleString()}`;
-      document.getElementById('card-sell-fiat').innerHTML = `Cobras: <b>C$ ${Number(fiatBack).toLocaleString()} NIO</b>`;
-      document.getElementById('link-sell-binance').href = m.sell_link;
-
-      const gainEl = document.getElementById('card-net-profit');
-      const roiEl = document.getElementById('card-net-roi');
-      const unitEl = document.getElementById('card-gain-unit');
-
-      if (netGain > 0) {
-        gainEl.innerText = `+C$ ${Number(netGain).toLocaleString()}`;
-        gainEl.className = 'text-3xl font-black font-mono text-emerald-400';
-        roiEl.innerText = `+${roi}% de Ganancia Limpia`;
-        roiEl.className = 'block text-xs font-bold text-emerald-400 mt-1';
-        unitEl.innerHTML = `Ganas: <b class="text-emerald-400">+C$ ${gainPerUsdt}</b> por cada USDT`;
-      } else {
-        gainEl.innerText = `C$ ${Number(netGain).toLocaleString()}`;
-        gainEl.className = 'text-3xl font-black font-mono text-gray-300';
-        roiEl.innerText = `${roi}% Diferencial`;
-        roiEl.className = 'block text-xs font-bold text-gray-400 mt-1';
-        unitEl.innerHTML = `Diferencia de C$ ${Math.abs(gainPerUsdt)} por USDT`;
+    // RENDERIZAR LAS 3 JUGADAS GANADORAS EN SECCIÓN 1
+    function renderTop3Plays(matches, capital) {
+      const container = document.getElementById('container-top-plays');
+      if (!matches || matches.length === 0) {
+        container.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-6">No hay suficientes anuncios en este momento.</div>';
+        return;
       }
 
-      document.getElementById('card-match-insight').innerText = m.recommendation;
+      const medals = ['🏆 Opción #1 (Recomendada)', '🥈 Opción #2 (Alternativa)', '🥉 Opción #3 (Alternativa)'];
+      const borderColors = ['border-amber-500/50', 'border-gray-700', 'border-gray-800'];
+      const bgColors = ['bg-gradient-to-b from-gray-900 via-gray-950 to-gray-950', 'bg-gray-950', 'bg-gray-950'];
+
+      const html = matches.slice(0, 3).map((m, idx) => {
+        const buyPrice = m.buy_price;
+        const sellPrice = m.sell_price;
+        const usdt = (capital / buyPrice).toFixed(2);
+        const fiatBack = (usdt * sellPrice).toFixed(2);
+        const netGain = (fiatBack - capital).toFixed(2);
+        const roi = (((fiatBack - capital) / capital) * 100).toFixed(2);
+        const gainPerUsdt = (sellPrice - buyPrice).toFixed(2);
+
+        const buyLink = m.buy_merchant_link || m.buy_link || 'https://p2p.binance.com';
+        const sellLink = m.sell_merchant_link || m.sell_link || 'https://p2p.binance.com';
+
+        const withinLimits = (capital >= m.buy_min_limit && capital <= m.buy_max_limit);
+        const limitBadge = withinLimits 
+          ? '<span class="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">🟢 Capital dentro de límites</span>'
+          : `<span class="text-[10px] text-amber-300 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800">🟡 Mínimo compra: C$ ${m.buy_min_limit.toLocaleString()}</span>`;
+
+        return `
+          <div class="${bgColors[idx]} p-4 rounded-xl border ${borderColors[idx]} flex flex-col justify-between space-y-3 shadow-md hover:border-amber-400 transition">
+            <div>
+              <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+                <span class="text-xs font-bold text-amber-300">${medals[idx]}</span>
+                <span class="bank-badge font-bold">${m.matched_bank}</span>
+              </div>
+
+              <!-- GANANCIA -->
+              <div class="my-3 text-center bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                <span class="text-xs text-gray-400 block font-medium">Ganancia Neta Estimada</span>
+                <span class="text-2xl font-black font-mono ${netGain > 0 ? 'text-emerald-400' : 'text-gray-300'}">
+                  ${netGain > 0 ? '+' : ''}C$ ${Number(netGain).toLocaleString()}
+                </span>
+                <span class="block text-[11px] font-bold ${netGain > 0 ? 'text-emerald-400' : 'text-gray-400'}">
+                  ${netGain > 0 ? '+' : ''}${roi}% ROI (+C$ ${gainPerUsdt}/USDT)
+                </span>
+              </div>
+
+              <!-- PASOS DETALLADOS -->
+              <div class="space-y-2 text-xs">
+                <!-- Paso Compra -->
+                <div class="p-2 rounded bg-gray-900/60 border border-gray-800">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-emerald-400">1. Compras a:</span>
+                    <a href="${buyLink}" target="_blank" class="text-amber-400 hover:underline font-bold text-[11px] truncate max-w-[120px]">
+                      ${m.buy_merchant} ↗
+                    </a>
+                  </div>
+                  <div class="flex items-center justify-between mt-1 text-[11px]">
+                    <span class="text-white font-mono font-bold">C$ ${buyPrice.toFixed(2)}</span>
+                    <span class="text-blue-300 font-mono">Recibes: <b>${usdt} USDT</b></span>
+                  </div>
+                  <span class="text-[10px] text-gray-500 block mt-0.5">Límites: C$ ${m.buy_min_limit.toLocaleString()} - ${m.buy_max_limit.toLocaleString()}</span>
+                </div>
+
+                <!-- Paso Venta -->
+                <div class="p-2 rounded bg-gray-900/60 border border-gray-800">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-rose-400">2. Vendes a:</span>
+                    <a href="${sellLink}" target="_blank" class="text-amber-400 hover:underline font-bold text-[11px] truncate max-w-[120px]">
+                      ${m.sell_merchant} ↗
+                    </a>
+                  </div>
+                  <div class="flex items-center justify-between mt-1 text-[11px]">
+                    <span class="text-white font-mono font-bold">C$ ${sellPrice.toFixed(2)}</span>
+                    <span class="text-emerald-300 font-mono">Cobras: <b>C$ ${Number(fiatBack).toLocaleString()}</b></span>
+                  </div>
+                  <span class="text-[10px] text-gray-500 block mt-0.5">Límites: C$ ${m.sell_min_limit.toLocaleString()} - ${m.sell_max_limit.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ENLACES DIRECTOS Y ESTADO -->
+            <div class="pt-2 border-t border-gray-800/80 space-y-2">
+              <div class="flex justify-between items-center">
+                ${limitBadge}
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-center text-xs">
+                <a href="${buyLink}" target="_blank" class="py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-gray-950 font-bold rounded text-[11px] transition">
+                  Comprar ↗
+                </a>
+                <a href="${sellLink}" target="_blank" class="py-1.5 px-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-[11px] transition">
+                  Vender ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+      if (autoMatch && autoMatch.recommendation) {
+        document.getElementById('card-match-insight').innerText = autoMatch.recommendation;
+      }
     }
 
+    // RENDERIZAR TABLAS INTERACTIVAS TOP 10 CON ENLACE DIRECTO A BINANCE
     function renderTablaInteractiva(tbodyId, ads, isBuy) {
       const tbody = document.getElementById(tbodyId);
       if (!ads || ads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500 font-sans">No hay anuncios disponibles.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">No hay anuncios disponibles.</td></tr>';
         return;
       }
 
       tbody.innerHTML = ads.slice(0, 10).map((a, idx) => {
         const banks = a.payment_methods.slice(0, 2).map(b => `<span class="bank-badge mr-1">${cleanBankName(b)}</span>`).join('');
         const priceColor = isBuy ? 'text-emerald-400' : 'text-rose-400';
-        const isSelected = (isBuy && selectedManualBuy && selectedManualBuy.adv_no === a.adv_no) ||
-                           (!isBuy && selectedManualSell && selectedManualSell.adv_no === a.adv_no);
-        const selClass = isSelected ? 'selected-row' : '';
+        
+        // Clases de selección
+        const isDirectSelected = (isBuy && selectedManualBuy && selectedManualBuy.adv_no === a.adv_no) ||
+                                 (!isBuy && selectedManualSell && selectedManualSell.adv_no === a.adv_no);
+        
+        const isPaired = (isBuy && !selectedManualBuy && selectedManualSell && autoMatch && autoMatch.buy_merchant === a.merchant_name) ||
+                         (!isBuy && selectedManualBuy && !selectedManualSell && autoMatch && autoMatch.sell_merchant === a.merchant_name);
+
+        let rowClass = 'clickable-row';
+        let badgeHtml = '';
+        if (isDirectSelected) {
+          rowClass += isBuy ? ' selected-buy' : ' selected-sell';
+          badgeHtml = '<span class="text-[10px] text-blue-400 font-bold ml-1">● Tu Selección</span>';
+        } else if (isPaired) {
+          rowClass += ' matched-pair-row';
+          badgeHtml = '<span class="text-[10px] text-amber-300 font-bold ml-1">★ Emparejado</span>';
+        }
+
+        const merchantLink = a.merchant_link || a.link || `https://p2p.binance.com/es/trade/${isBuy ? 'buy' : 'sell'}/USDT?fiat=NIO`;
 
         return `
-          <tr class="clickable-row ${selClass}" onclick="seleccionarFila(${idx}, ${isBuy})">
+          <tr class="${rowClass}" onclick="seleccionarFila(${idx}, ${isBuy})">
             <td class="py-2.5 font-sans font-medium text-white">
-              ${idx + 1}. ${a.merchant_name}
-              ${isSelected ? '<span class="text-xs text-blue-400 font-bold ml-1">● Seleccionado</span>' : ''}
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-400 font-mono text-xs">${idx + 1}.</span>
+                <a href="${merchantLink}" target="_blank" onclick="event.stopPropagation()" class="text-amber-400 hover:text-amber-300 hover:underline font-bold text-xs flex items-center gap-1" title="Abrir perfil de ${a.merchant_name} en Binance">
+                  <span>${a.merchant_name}</span>
+                  <svg class="w-3 h-3 text-gray-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
+                ${badgeHtml}
+              </div>
             </td>
             <td class="py-2.5 font-bold ${priceColor}">C$ ${a.price.toFixed(2)}</td>
             <td class="py-2.5 text-gray-300 text-[11px]">C$ ${a.min_limit.toLocaleString()} - ${a.max_limit.toLocaleString()}</td>
             <td class="py-2.5 font-sans">${banks}</td>
+            <td class="py-2.5 text-right">
+              <a href="${merchantLink}" target="_blank" onclick="event.stopPropagation()" class="bg-gray-800 hover:bg-amber-500 hover:text-gray-950 text-amber-300 font-bold text-[10px] px-2 py-1 rounded border border-gray-700 transition inline-block">
+                Ver ↗
+              </a>
+            </td>
           </tr>
         `;
       }).join('');
     }
 
-    // Al hacer clic en un anuncio de compra o venta
+    // AL HACER CLIC EN CUALQUIER FILA PARA EMPAREJAR
     function seleccionarFila(index, isBuy) {
       if (isBuy) {
         selectedManualBuy = rawLiveBuys[index];
-        selectedManualSell = null;
-        document.getElementById('txt-manual-selection').innerText = `Has seleccionado la compra con ${selectedManualBuy.merchant_name} (C$ ${selectedManualBuy.price.toFixed(2)}). Buscando la mejor venta con su mismo banco...`;
+        // Si no había venta seleccionada o ya había, buscar automáticamente la mejor contraparte
+        selectedManualSell = buscarMejorContraparte(selectedManualBuy, false);
       } else {
         selectedManualSell = rawLiveSells[index];
-        selectedManualBuy = null;
-        document.getElementById('txt-manual-selection').innerText = `Has seleccionado la venta con ${selectedManualSell.merchant_name} (C$ ${selectedManualSell.price.toFixed(2)}). Buscando la mejor compra con su mismo banco...`;
+        selectedManualBuy = buscarMejorContraparte(selectedManualSell, true);
       }
 
-      document.getElementById('badge-match-mode').innerText = 'Modo: Emparejamiento Manual';
-      document.getElementById('banner-manual-selection').classList.remove('hidden');
+      document.getElementById('badge-match-mode').innerText = 'Modo: Emparejamiento Interactivo';
+      document.getElementById('btn-reset-match').classList.remove('hidden');
 
       recalcularMatchSeleccionado();
       renderTablaInteractiva('tbody-buys', rawLiveBuys, true);
       renderTablaInteractiva('tbody-sells', rawLiveSells, false);
     }
 
-    function recalcularMatchSeleccionado() {
-      if (selectedManualBuy) {
-        // Buscar el mejor vendedor que acepte el mismo banco
-        const buyBanks = selectedManualBuy.payment_methods.map(cleanBankName);
-        let bestPairSell = null;
-        let maxSpread = -9999;
-        let matchedBank = buyBanks[0] || 'BAC Credomatic';
+    // BUSCA LA MEJOR CONTRAPARTE CON EL MISMO BANCO (O FALLBACK AL MEJOR SPREAD)
+    function buscarMejorContraparte(ad, searchBuy) {
+      const candidates = searchBuy ? rawLiveBuys : rawLiveSells;
+      if (!candidates || candidates.length === 0) return null;
 
-        for (const s of rawLiveSells) {
-          const sBanks = s.payment_methods.map(cleanBankName);
-          const common = buyBanks.filter(b => sBanks.includes(b));
-          if (common.length > 0) {
-            const spread = s.price - selectedManualBuy.price;
-            if (spread > maxSpread) {
-              maxSpread = spread;
-              bestPairSell = s;
-              matchedBank = common[0];
-            }
+      const adBanks = (ad.payment_methods || []).map(cleanBankName);
+      let bestPartner = null;
+      let maxSpread = -9999;
+
+      // 1. Prioridad: Anuncio que comparta el mismo banco
+      for (const cand of candidates) {
+        const candBanks = (cand.payment_methods || []).map(cleanBankName);
+        const common = adBanks.filter(b => candBanks.includes(b));
+        if (common.length > 0) {
+          const spread = searchBuy ? (ad.price - cand.price) : (cand.price - ad.price);
+          if (spread > maxSpread) {
+            maxSpread = spread;
+            bestPartner = cand;
           }
-        }
-
-        if (bestPairSell) {
-          mostrarMatch({
-            matched_bank: matchedBank,
-            buy_merchant: selectedManualBuy.merchant_name,
-            buy_price: selectedManualBuy.price,
-            buy_min_limit: selectedManualBuy.min_limit,
-            buy_max_limit: selectedManualBuy.max_limit,
-            buy_link: selectedManualBuy.link,
-            sell_merchant: bestPairSell.merchant_name,
-            sell_price: bestPairSell.price,
-            sell_min_limit: bestPairSell.min_limit,
-            sell_max_limit: bestPairSell.max_limit,
-            sell_link: bestPairSell.link,
-            recommendation: `Emparejado con ${bestPairSell.merchant_name} a través de ${matchedBank}.`
-          });
-        }
-      } else if (selectedManualSell) {
-        // Buscar el mejor comprador que acepte el mismo banco
-        const sellBanks = selectedManualSell.payment_methods.map(cleanBankName);
-        let bestPairBuy = null;
-        let maxSpread = -9999;
-        let matchedBank = sellBanks[0] || 'BAC Credomatic';
-
-        for (const b of rawLiveBuys) {
-          const bBanks = b.payment_methods.map(cleanBankName);
-          const common = sellBanks.filter(sb => bBanks.includes(sb));
-          if (common.length > 0) {
-            const spread = selectedManualSell.price - b.price;
-            if (spread > maxSpread) {
-              maxSpread = spread;
-              bestPairBuy = b;
-              matchedBank = common[0];
-            }
-          }
-        }
-
-        if (bestPairBuy) {
-          mostrarMatch({
-            matched_bank: matchedBank,
-            buy_merchant: bestPairBuy.merchant_name,
-            buy_price: bestPairBuy.price,
-            buy_min_limit: bestPairBuy.min_limit,
-            buy_max_limit: bestPairBuy.max_limit,
-            buy_link: bestPairBuy.link,
-            sell_merchant: selectedManualSell.merchant_name,
-            sell_price: selectedManualSell.price,
-            sell_min_limit: selectedManualSell.min_limit,
-            sell_max_limit: selectedManualSell.max_limit,
-            sell_link: selectedManualSell.link,
-            recommendation: `Emparejado con ${bestPairBuy.merchant_name} a través de ${matchedBank}.`
-          });
         }
       }
+
+      // 2. Fallback: Si ningún anunciante comparte banco, tomar el mejor precio disponible
+      if (!bestPartner) {
+        bestPartner = candidates[0];
+      }
+
+      return bestPartner;
+    }
+
+    // RECALCULAR Y MOSTRAR EL EMPAREJAMIENTO SELECCIONADO EN EL PANEL INTERACTIVO
+    function recalcularMatchSeleccionado() {
+      if (!selectedManualBuy || !selectedManualSell) return;
+
+      const capital = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      const buyPrice = selectedManualBuy.price;
+      const sellPrice = selectedManualSell.price;
+
+      const usdt = (capital / buyPrice).toFixed(2);
+      const fiatBack = (usdt * sellPrice).toFixed(2);
+      const netGain = (fiatBack - capital).toFixed(2);
+      const roi = (((fiatBack - capital) / capital) * 100).toFixed(2);
+      const spread = (sellPrice - buyPrice).toFixed(2);
+
+      // Banco en común
+      const bBanks = (selectedManualBuy.payment_methods || []).map(cleanBankName);
+      const sBanks = (selectedManualSell.payment_methods || []).map(cleanBankName);
+      const common = bBanks.filter(b => sBanks.includes(b));
+      const matchedBank = common[0] || `${bBanks[0] || 'BAC'} ➔ ${sBanks[0] || 'Banpro'}`;
+
+      const buyLink = selectedManualBuy.merchant_link || selectedManualBuy.link || 'https://p2p.binance.com';
+      const sellLink = selectedManualSell.merchant_link || selectedManualSell.link || 'https://p2p.binance.com';
+
+      const panel = document.getElementById('panel-interactive-match');
+      const details = document.getElementById('interactive-match-details');
+      details.classList.remove('hidden');
+
+      details.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-center text-xs">
+          <!-- Paso Compra -->
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-emerald-900/40">
+            <span class="text-[10px] font-bold text-emerald-400 uppercase block">1. Compras Barato</span>
+            <div class="flex items-center justify-between mt-1">
+              <a href="${buyLink}" target="_blank" class="text-amber-300 font-bold hover:underline">${selectedManualBuy.merchant_name} ↗</a>
+              <span class="font-mono text-emerald-300 font-bold">C$ ${buyPrice.toFixed(2)}</span>
+            </div>
+            <span class="text-[10px] text-gray-400 block mt-1">Recibes: <b>${usdt} USDT</b></span>
+          </div>
+
+          <!-- Flecha y Banco -->
+          <div class="text-center p-2 rounded-lg bg-gray-950/60 border border-gray-800">
+            <span class="text-[10px] text-gray-400 block">Banco en Común</span>
+            <span class="bank-badge text-amber-300 font-bold mt-1">${matchedBank}</span>
+            <span class="text-[10px] text-gray-500 block mt-1">Spread: ${spread > 0 ? '+' : ''}C$ ${spread}/USDT</span>
+          </div>
+
+          <!-- Paso Venta -->
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-rose-900/40">
+            <span class="text-[10px] font-bold text-rose-400 uppercase block">2. Vendes Caro</span>
+            <div class="flex items-center justify-between mt-1">
+              <a href="${sellLink}" target="_blank" class="text-amber-300 font-bold hover:underline">${selectedManualSell.merchant_name} ↗</a>
+              <span class="font-mono text-rose-300 font-bold">C$ ${sellPrice.toFixed(2)}</span>
+            </div>
+            <span class="text-[10px] text-gray-400 block mt-1">Cobras: <b>C$ ${Number(fiatBack).toLocaleString()}</b></span>
+          </div>
+
+          <!-- Resultado y Botones -->
+          <div class="p-2.5 rounded-lg bg-gray-900 border border-gray-700 text-center flex flex-col justify-between">
+            <div>
+              <span class="text-[10px] text-gray-400 block">Tu Ganancia Neta</span>
+              <span class="text-xl font-black font-mono ${netGain > 0 ? 'text-emerald-400' : 'text-gray-300'}">
+                ${netGain > 0 ? '+' : ''}C$ ${Number(netGain).toLocaleString()}
+              </span>
+              <span class="text-[10px] font-bold ${netGain > 0 ? 'text-emerald-400' : 'text-gray-400'} block">
+                ${netGain > 0 ? '+' : ''}${roi}% ROI
+              </span>
+            </div>
+            <div class="flex gap-1.5 mt-2">
+              <a href="${buyLink}" target="_blank" class="w-1/2 py-1 bg-emerald-600 hover:bg-emerald-500 text-gray-950 font-bold rounded text-[10px] text-center">Comprar ↗</a>
+              <a href="${sellLink}" target="_blank" class="w-1/2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-[10px] text-center">Vender ↗</a>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     function resetearMatchAutomatico() {
       selectedManualBuy = null;
       selectedManualSell = null;
-      document.getElementById('banner-manual-selection').classList.add('hidden');
-      document.getElementById('badge-match-mode').innerText = 'Modo: Mejor Match Automático';
-      mostrarMatch(autoMatch);
+      document.getElementById('badge-match-mode').innerText = 'Top 3 Opciones Rentables';
+      document.getElementById('btn-reset-match').classList.add('hidden');
+      document.getElementById('interactive-match-details').classList.add('hidden');
       renderTablaInteractiva('tbody-buys', rawLiveBuys, true);
       renderTablaInteractiva('tbody-sells', rawLiveSells, false);
     }
 
     function setCapital(val) {
       document.getElementById('input-user-capital').value = val;
-      if (selectedManualBuy || selectedManualSell) {
+      if (selectedManualBuy && selectedManualSell) {
         recalcularMatchSeleccionado();
-      } else if (autoMatch) {
-        mostrarMatch(autoMatch);
       }
+      renderTop3Plays(topMatchesList, val);
     }
 
     function cambiarCapitalManual() {
-      if (selectedManualBuy || selectedManualSell) {
+      const val = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      if (selectedManualBuy && selectedManualSell) {
         recalcularMatchSeleccionado();
-      } else if (autoMatch) {
-        mostrarMatch(autoMatch);
       }
+      renderTop3Plays(topMatchesList, val);
     }
 
     // GRÁFICO 1: LÍNEA DE TIEMPO CON HORA LOCAL DE NICARAGUA
@@ -831,6 +950,30 @@
       }
     }
 
+    // AUTO-CALCULAR METAS INTELIGENTES BASADAS EN EL HISTORIAL REAL
+    async function autoCalcularMetasInteligentes() {
+      const btn = document.getElementById('btn-smart-calc');
+      const txt = document.getElementById('txt-smart-insight');
+      btn.disabled = true;
+      btn.innerText = 'Calculando...';
+
+      try {
+        const res = await fetch(`${API}/config/smart-targets/NIO`);
+        if (!res.ok) throw new Error('Error al consultar metas inteligentes');
+        const data = await res.json();
+
+        document.getElementById('cfg-buy').value = data.suggested_buy_target.toFixed(2);
+        document.getElementById('cfg-sell').value = data.suggested_sell_target.toFixed(2);
+        txt.innerHTML = `<span class="text-emerald-400 font-bold">✓ Calibrado con ${data.samples_used} registros:</span> ${data.insight}`;
+      } catch (err) {
+        console.error(err);
+        txt.innerText = 'Error al conectar con el motor estadístico.';
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Auto-Calcular Ahora';
+      }
+    }
+
     async function guardarReglas(e) {
       e.preventDefault();
       const b = parseFloat(document.getElementById('cfg-buy').value);
@@ -851,12 +994,13 @@
             sell_target: s,
             budget: 5000.0,
             pay_types: [],
-            enabled: true
+            enabled: true,
+            auto_smart_mode: true
           })
         });
         if (res.ok) {
           cerrarConfigModal();
-          alert('¡Metas actualizadas con éxito!');
+          alert('¡Metas inteligentes actualizadas con éxito!');
         }
       } catch (err) {
         alert('Error al conectar con el servidor.');

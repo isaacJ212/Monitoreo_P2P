@@ -313,3 +313,75 @@ def build_predictions(db: Session, fiat: str, asset: str = "USDT") -> Prediction
         historical_avg_sell=avg_sell,
         time_patterns=_analyze_time_and_payments(db, clean_fiat, clean_asset),
     )
+
+
+def calculate_smart_targets(db: Session, fiat: str = "NIO", asset: str = "USDT") -> dict:
+    clean_fiat = fiat.upper()
+    buy_rows = (
+        db.query(MarketSnapshot.best_price)
+        .filter(MarketSnapshot.fiat == clean_fiat, MarketSnapshot.trade_type == "BUY")
+        .order_by(MarketSnapshot.timestamp.desc())
+        .limit(150)
+        .all()
+    )
+    sell_rows = (
+        db.query(MarketSnapshot.best_price)
+        .filter(MarketSnapshot.fiat == clean_fiat, MarketSnapshot.trade_type == "SELL")
+        .order_by(MarketSnapshot.timestamp.desc())
+        .limit(150)
+        .all()
+    )
+
+    buy_prices = [r[0] for r in buy_rows if r[0] > 0]
+    sell_prices = [r[0] for r in sell_rows if r[0] > 0]
+
+    if len(buy_prices) >= 5 and len(sell_prices) >= 5:
+        avg_b = float(np.mean(buy_prices))
+        std_b = float(np.std(buy_prices))
+        p25_b = float(np.percentile(buy_prices, 25))
+        suggested_buy = round(min(p25_b, avg_b - 0.25 * std_b), 2)
+
+        avg_s = float(np.mean(sell_prices))
+        std_s = float(np.std(sell_prices))
+        p75_s = float(np.percentile(sell_prices, 75))
+        suggested_sell = round(max(p75_s, avg_s + 0.25 * std_s), 2)
+
+        if suggested_buy >= suggested_sell:
+            suggested_buy = round(avg_b * 0.995, 2)
+            suggested_sell = round(avg_s * 1.005, 2)
+            if suggested_buy >= suggested_sell:
+                suggested_sell = round(suggested_buy + 0.40, 2)
+
+        spread = round(suggested_sell - suggested_buy, 2)
+        spread_pct = round((spread / suggested_buy) * 100, 2)
+        samples = len(buy_prices) + len(sell_prices)
+
+        insight = (
+            f"Metas estadísticas calibradas con {samples} registros: "
+            f"Alerta de compra al bajar a C${suggested_buy:.2f} (percentil 25 más bajo) "
+            f"y alerta de venta al subir a C${suggested_sell:.2f} (percentil 75 más alto), "
+            f"apuntando a un margen de +C${spread:.2f} NIO (+{spread_pct}%)."
+        )
+    else:
+        suggested_buy = 36.80
+        suggested_sell = 37.50
+        avg_b = 37.04
+        avg_s = 36.60
+        spread = round(suggested_sell - suggested_buy, 2)
+        spread_pct = round((spread / suggested_buy) * 100, 2)
+        samples = len(buy_prices) + len(sell_prices)
+        insight = "Datos históricos iniciales. Se usan metas de referencia para Nicaragua: Compra C$36.80, Venta C$37.50."
+
+    return {
+        "fiat": clean_fiat,
+        "asset": asset.upper(),
+        "suggested_buy_target": suggested_buy,
+        "suggested_sell_target": suggested_sell,
+        "historical_avg_buy": round(avg_b, 2),
+        "historical_avg_sell": round(avg_s, 2),
+        "spread": spread,
+        "spread_pct": spread_pct,
+        "samples_used": samples,
+        "insight": insight,
+    }
+

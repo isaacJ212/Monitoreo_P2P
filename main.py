@@ -13,10 +13,10 @@ from app.config.Config import FIAT_RULES
 from app.Database.database import Base, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
 from app.scheduler import run_monitoring_cycle, scheduler, start_scheduler
-from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse
+from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse, SmartTargetResponse
 from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
-from app.Servicies.predictor import build_predictions, get_historical_averages
+from app.Servicies.predictor import build_predictions, calculate_smart_targets, get_historical_averages
 
 
 @asynccontextmanager
@@ -148,6 +148,11 @@ def get_alerts(limit: int = Query(30, ge=1, le=200), db: Session = Depends(get_d
 @app.get("/api/v1/config/rules")
 def get_rules():
     return FIAT_RULES
+
+
+@app.get("/api/v1/config/smart-targets/{fiat}", response_model=SmartTargetResponse)
+def get_smart_targets(fiat: str, asset: str = "USDT", db: Session = Depends(get_db)):
+    return calculate_smart_targets(db, fiat=fiat, asset=asset)
 
 
 @app.put("/api/v1/config/rules/{fiat}")

@@ -12,6 +12,8 @@ class AdDetail(BaseModel):
     available_asset: float
     payment_methods: list[str]
     merchant_name: str
+    merchant_user_no: str = ""
+    merchant_link: str = ""
     month_orders: int
     finish_rate_pct: float
     is_verified_merchant: bool
@@ -25,19 +27,28 @@ class ArbitragePair(BaseModel):
     buy_min_limit: float
     buy_max_limit: float
     buy_link: str
+    buy_user_no: str = ""
+    buy_merchant_link: str = ""
 
     sell_merchant: str
     sell_price: float
     sell_min_limit: float
     sell_max_limit: float
     sell_link: str
+    sell_user_no: str = ""
+    sell_merchant_link: str = ""
 
     spread: float
     roi_pct: float
     gain_per_usdt: float
     gain_per_1000_fiat: float
+    simulated_budget: float = 5000.0
+    usdt_obtained: float = 0.0
+    fiat_returned: float = 0.0
     net_profit_fiat: float = 0.0
+    net_profit_pct: float = 0.0
     is_profitable: bool
+    is_budget_within_limits: bool = True
 
 
 class ArbitrageMatch(BaseModel):
@@ -48,6 +59,8 @@ class ArbitrageMatch(BaseModel):
     buy_max_limit: float
     buy_payment_methods: list[str]
     buy_link: str
+    buy_user_no: str = ""
+    buy_merchant_link: str = ""
 
     sell_merchant: str
     sell_price: float
@@ -55,6 +68,8 @@ class ArbitrageMatch(BaseModel):
     sell_max_limit: float
     sell_payment_methods: list[str]
     sell_link: str
+    sell_user_no: str = ""
+    sell_merchant_link: str = ""
 
     gross_spread: float
     spread_pct: float
@@ -66,6 +81,7 @@ class ArbitrageMatch(BaseModel):
     gain_per_usdt: float = 0.0
     gain_per_1000_fiat: float = 0.0
     is_profitable: bool = False
+    is_budget_within_limits: bool = True
     common_payment_methods: list[str] = []
     recommendation: str = ""
     top_matches: list[ArbitragePair] = []
@@ -152,3 +168,18 @@ class FiatRuleUpdate(BaseModel):
     budget: float = Field(..., gt=0)
     pay_types: list[str] = []
     enabled: bool = True
+    auto_smart_mode: bool = False
+
+
+class SmartTargetResponse(BaseModel):
+    fiat: str
+    asset: str
+    suggested_buy_target: float
+    suggested_sell_target: float
+    historical_avg_buy: float
+    historical_avg_sell: float
+    spread: float
+    spread_pct: float
+    samples_used: int
+    insight: str
+
