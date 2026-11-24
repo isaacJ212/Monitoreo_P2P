@@ -17,6 +17,7 @@ def normalize_bank(name: str) -> str:
 def compute_arbitrage_match(
     buy_ads: list[AdDetail],
     sell_ads: list[AdDetail],
+    budget: float = 5000.0,
     fiat: str = "NIO",
     asset: str = "USDT",
 ) -> ArbitrageMatch | None:
@@ -26,6 +27,7 @@ def compute_arbitrage_match(
     clean_fiat = fiat.upper()
     clean_asset = asset.upper()
     direct_link = f"https://p2p.binance.com/es/trade/all-payments/{clean_asset}?fiat={clean_fiat}"
+    operable_budget = float(budget if budget and budget > 0 else 5000.0)
 
     # Búsqueda global de todos los cruces con banco coincidente
     valid_pairs: list[ArbitragePair] = []
@@ -45,6 +47,10 @@ def compute_arbitrage_match(
             gain_per_usdt = spread
             gain_per_1000 = round((1000.0 / b.price) * spread, 2)
 
+            usdt_obtained = round(operable_budget / b.price, 2)
+            fiat_returned = round(usdt_obtained * s.price, 2)
+            net_profit_fiat = round(fiat_returned - operable_budget, 2)
+
             valid_pairs.append(
                 ArbitragePair(
                     matched_bank=matched_bank,
@@ -62,6 +68,7 @@ def compute_arbitrage_match(
                     roi_pct=roi_pct,
                     gain_per_usdt=gain_per_usdt,
                     gain_per_1000_fiat=gain_per_1000,
+                    net_profit_fiat=net_profit_fiat,
                     is_profitable=(spread > 0),
                 )
             )
@@ -74,12 +81,17 @@ def compute_arbitrage_match(
         top_matches = valid_pairs[:5]
         matched_bank = winner.matched_bank
 
+        usdt_obtained = round(operable_budget / winner.buy_price, 2)
+        fiat_returned = round(usdt_obtained * winner.sell_price, 2)
+        net_profit_fiat = round(fiat_returned - operable_budget, 2)
+        net_profit_pct = round((net_profit_fiat / operable_budget) * 100, 2)
+
         if winner.is_profitable:
             rec = (
                 f"🏆 ¡JUGADA GANADORA EN {matched_bank.upper()}! "
                 f"Compras a {winner.buy_merchant} (C${winner.buy_price:.2f}) y vendes a {winner.sell_merchant} (C${winner.sell_price:.2f}). "
-                f"Ganancia limpia: +C${winner.gain_per_usdt:.2f} por cada USDT (+{winner.roi_pct}%). "
-                f"Por cada C$1,000 ganas aprox. +C${winner.gain_per_1000_fiat:.2f} {clean_fiat}."
+                f"Con C${operable_budget:,.0f} obtienes {usdt_obtained} USDT y recibes C${fiat_returned:,.2f} NIO. "
+                f"Ganancia limpia: +C${net_profit_fiat:,.2f} (+{net_profit_pct}% ROI)."
             )
         else:
             rec = (
@@ -103,6 +115,11 @@ def compute_arbitrage_match(
             sell_link=winner.sell_link,
             gross_spread=winner.spread,
             spread_pct=winner.roi_pct,
+            simulated_budget=operable_budget,
+            usdt_obtained=usdt_obtained,
+            fiat_returned=fiat_returned,
+            net_profit_fiat=net_profit_fiat,
+            net_profit_pct=net_profit_pct,
             gain_per_usdt=winner.gain_per_usdt,
             gain_per_1000_fiat=winner.gain_per_1000_fiat,
             is_profitable=winner.is_profitable,
@@ -118,6 +135,11 @@ def compute_arbitrage_match(
     roi_pct = round((spread / best_buy.price) * 100, 2)
     gain_per_usdt = spread
     gain_per_1000 = round((1000.0 / best_buy.price) * spread, 2)
+
+    usdt_obtained = round(operable_budget / best_buy.price, 2)
+    fiat_returned = round(usdt_obtained * best_sell.price, 2)
+    net_profit_fiat = round(fiat_returned - operable_budget, 2)
+    net_profit_pct = round((net_profit_fiat / operable_budget) * 100, 2)
 
     return ArbitrageMatch(
         matched_bank="Distintos Bancos",
@@ -135,6 +157,11 @@ def compute_arbitrage_match(
         sell_link=best_sell.link or direct_link,
         gross_spread=spread,
         spread_pct=roi_pct,
+        simulated_budget=operable_budget,
+        usdt_obtained=usdt_obtained,
+        fiat_returned=fiat_returned,
+        net_profit_fiat=net_profit_fiat,
+        net_profit_pct=net_profit_pct,
         gain_per_usdt=gain_per_usdt,
         gain_per_1000_fiat=gain_per_1000,
         is_profitable=(spread > 0),

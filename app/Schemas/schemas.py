@@ -36,6 +36,7 @@ class ArbitragePair(BaseModel):
     roi_pct: float
     gain_per_usdt: float
     gain_per_1000_fiat: float
+    net_profit_fiat: float = 0.0
     is_profitable: bool
 
 
@@ -57,11 +58,16 @@ class ArbitrageMatch(BaseModel):
 
     gross_spread: float
     spread_pct: float
-    gain_per_usdt: float
-    gain_per_1000_fiat: float
-    is_profitable: bool
-    common_payment_methods: list[str]
-    recommendation: str
+    simulated_budget: float = 5000.0
+    usdt_obtained: float = 0.0
+    fiat_returned: float = 0.0
+    net_profit_fiat: float = 0.0
+    net_profit_pct: float = 0.0
+    gain_per_usdt: float = 0.0
+    gain_per_1000_fiat: float = 0.0
+    is_profitable: bool = False
+    common_payment_methods: list[str] = []
+    recommendation: str = ""
     top_matches: list[ArbitragePair] = []
 
 

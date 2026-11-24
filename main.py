@@ -1,7 +1,7 @@
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Binance P2P Monitor & Predictor API",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
@@ -69,14 +69,14 @@ async def get_live_market(
     buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset_code, budget, pay_types, only_merchants=only_merchants)
     sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset_code, budget, pay_types, only_merchants=only_merchants)
 
-    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, fiat=fiat_code, asset=asset_code)
+    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat_code, asset=asset_code)
     avg_buy, avg_sell = get_historical_averages(db, fiat_code, asset_code)
 
     return LiveMarketResponse(
         fiat=fiat_code,
         asset=asset_code,
         checked_at=datetime.now(timezone.utc),
-        best_buy=buy_ads[0] if buy_ads else None,
+        best_buy=buy_ads[0] if buy_ads else None,   
         best_sell=sell_ads[0] if sell_ads else None,
         buy_ads=buy_ads[:10],
         sell_ads=sell_ads[:10],
@@ -108,18 +108,24 @@ def get_price_history(
         .all()
     )
     rows.reverse()
-    return [
-        {
-            "timestamp": r.timestamp.isoformat(),
+    tz_ni = timezone(timedelta(hours=-6))
+    result = []
+    for r in rows:
+        dt = r.timestamp
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone(tz_ni)
+        result.append({
+            "timestamp": dt.isoformat(),
+            "timestamp_local": local_dt.strftime("%I:%M %p"),
             "best_price": r.best_price,
             "avg_top5_price": r.avg_top5_price,
             "min_limit": r.min_limit,
             "max_limit": r.max_limit,
-            "payment_methods": json.loads(r.payment_methods),
+            "payment_methods": json.loads(r.payment_methods) if isinstance(r.payment_methods, str) else r.payment_methods,
             "merchant_name": r.merchant_name,
-        }
-        for r in rows
-    ]
+        })
+    return result
 
 
 @app.get("/api/v1/alerts")

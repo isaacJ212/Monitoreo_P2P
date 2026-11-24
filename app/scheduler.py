@@ -55,7 +55,7 @@ async def run_monitoring_cycle() -> dict:
             # Obtener promedios históricos y predicciones
             avg_buy_hist, avg_sell_hist = get_historical_averages(db, fiat, asset)
             predictions = build_predictions(db, fiat, asset)
-            arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, fiat=fiat, asset=asset)
+            arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat, asset=asset)
 
             triggered = []
 
