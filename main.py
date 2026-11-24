@@ -1,8 +1,11 @@
 import json
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 
@@ -37,6 +40,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/", include_in_schema=False)
+async def serve_dashboard():
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    return {"message": "P2P Monitor API en línea. Visita /docs para la documentación interactiva."}
+
 
 
 @app.get("/api/v1/live/{fiat}", response_model=LiveMarketResponse)
