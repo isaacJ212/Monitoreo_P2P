@@ -286,8 +286,17 @@ async def _send_waha_message(text: str) -> bool:
         headers["X-Api-Key"] = settings.WAHA_API_KEY
 
     target_urls = [settings.WAHA_API_URL]
-    if "localhost" in settings.WAHA_API_URL:
-        target_urls.append(settings.WAHA_API_URL.replace("localhost", "waha"))
+    # Soporte automático para puertos comunes (3000 y 3008) y resolución host Docker
+    if ":3008" in settings.WAHA_API_URL:
+        target_urls.append(settings.WAHA_API_URL.replace(":3008", ":3000"))
+    elif ":3000" in settings.WAHA_API_URL:
+        target_urls.append(settings.WAHA_API_URL.replace(":3000", ":3008"))
+
+    extra_urls = []
+    for u in target_urls:
+        if "localhost" in u:
+            extra_urls.append(u.replace("localhost", "waha"))
+    target_urls.extend(extra_urls)
 
     async with httpx.AsyncClient(timeout=12.0) as client:
         last_exc = None

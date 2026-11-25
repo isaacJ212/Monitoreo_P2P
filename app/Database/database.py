@@ -119,8 +119,6 @@ def initialize_engine():
             print("☁️ [DATABASE] Todas las lecturas y escrituras se realizan en Supabase.")
             print("=" * 70 + "\n")
 
-            auto_sync_sqlite_to_target(pg_engine)
-
             return pg_engine, "POSTGRESQL"
         except Exception as e:
             print("\n" + "=" * 70)

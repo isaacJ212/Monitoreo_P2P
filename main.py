@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 
 from app.config.Config import FIAT_RULES, settings
-from app.Database.database import Base, engine, get_db
+from app.Database.database import Base, auto_sync_sqlite_to_target, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
 from app.scheduler import run_monitoring_cycle, run_periodic_report, scheduler, start_scheduler
 from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse, SmartTargetResponse
@@ -23,6 +23,7 @@ from app.Servicies.report_service import dispatch_market_report, generate_market
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    auto_sync_sqlite_to_target(engine)
     start_scheduler()
     yield
     scheduler.shutdown()
