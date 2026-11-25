@@ -234,11 +234,22 @@
 
     <!-- SECCIÓN 3: LÍNEA DE TIEMPO DE PRECIOS EN VIVO (HORA EXACTA DE NICARAGUA) -->
     <section class="space-y-3">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-sm font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
           <span>3️⃣</span> Línea de Tiempo de Precios (Hora de Nicaragua)
         </h2>
-        <span class="text-xs text-gray-400 font-sans">💡 Haz clic en cualquier punto del gráfico para ver los datos de ese minuto</span>
+
+        <!-- Selector de rango histórico: Mínimo 1H, Máximo 1M -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-400 font-sans hidden sm:inline">Rango histórico:</span>
+          <div class="inline-flex rounded-lg bg-gray-950 p-1 border border-gray-800 text-xs font-mono">
+            <button type="button" onclick="setTimelineRange('1h')" id="btn-range-1h" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">1H</button>
+            <button type="button" onclick="setTimelineRange('6h')" id="btn-range-6h" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">6H</button>
+            <button type="button" onclick="setTimelineRange('24h')" id="btn-range-24h" class="timeline-range-btn px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40">24H</button>
+            <button type="button" onclick="setTimelineRange('7d')" id="btn-range-7d" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">7D</button>
+            <button type="button" onclick="setTimelineRange('1m')" id="btn-range-1m" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">1M</button>
+          </div>
+        </div>
       </div>
 
       <div class="box-clean p-5 space-y-3">
@@ -448,6 +459,7 @@
   <script>
     let timelineChart = null;
     let predictionChart = null;
+    let currentTimelineRange = '24h';
     let rawLiveBuys = [];
     let rawLiveSells = [];
     let historyPoints = [];
@@ -829,12 +841,25 @@
       renderTop3Plays(topMatchesList, val);
     }
 
+    // SELECCIÓN DE RANGO TEMPORAL PARA EL GRÁFICO (MÍNIMO 1H, MÁXIMO 1M)
+    function setTimelineRange(range) {
+      currentTimelineRange = range;
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition';
+      });
+      const activeBtn = document.getElementById(`btn-range-${range}`);
+      if (activeBtn) {
+        activeBtn.className = 'timeline-range-btn px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40';
+      }
+      obtenerHistorial();
+    }
+
     // GRÁFICO 1: LÍNEA DE TIEMPO CON HORA LOCAL DE NICARAGUA
     async function obtenerHistorial() {
       try {
         const [rBuy, rSell] = await Promise.all([
-          fetch(`${API}/history/NIO?trade_type=BUY&limit=30`),
-          fetch(`${API}/history/NIO?trade_type=SELL&limit=30`)
+          fetch(`${API}/history/NIO?trade_type=BUY&time_range=${currentTimelineRange}`),
+          fetch(`${API}/history/NIO?trade_type=SELL&time_range=${currentTimelineRange}`)
         ]);
         const buys = await rBuy.json();
         const sells = await rSell.json();
@@ -855,19 +880,29 @@
         const ctx = document.getElementById('canvas-timeline').getContext('2d');
         if (timelineChart) timelineChart.destroy();
 
+        const pRadius = currentTimelineRange === '1h' ? 4 : (currentTimelineRange === '1m' ? 1 : 2.5);
+
         timelineChart = new Chart(ctx, {
           type: 'line',
           data: {
             labels: labels,
             datasets: [
-              { label: 'Compra', data: buyPrices, borderColor: '#10b981', tension: 0.3, pointRadius: 3 },
-              { label: 'Venta', data: sellPrices, borderColor: '#ef4444', tension: 0.3, pointRadius: 3 }
+              { label: 'Compra', data: buyPrices, borderColor: '#10b981', tension: 0.3, pointRadius: pRadius, pointHoverRadius: 6 },
+              { label: 'Venta', data: sellPrices, borderColor: '#ef4444', tension: 0.3, pointRadius: pRadius, pointHoverRadius: 6 }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => `Hora Nicaragua: ${items[0].label}`,
+                  label: (item) => ` ${item.dataset.label}: C$ ${item.parsed.y.toFixed(2)} NIO`
+                }
+              }
+            },
             scales: {
               x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
               y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }

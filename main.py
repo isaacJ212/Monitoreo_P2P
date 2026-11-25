@@ -98,28 +98,71 @@ def get_predictions(fiat: str, asset: str = "USDT", db: Session = Depends(get_db
 def get_price_history(
     fiat: str,
     trade_type: str = Query("BUY", pattern="^(BUY|SELL)$"),
-    limit: int = Query(100, ge=1, le=1000),
+    time_range: str = Query("24h", pattern="^(1h|6h|12h|24h|7d|30d|1m)$"),
+    limit: int = Query(500, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
+    range_map = {
+        "1h": timedelta(hours=1),
+        "6h": timedelta(hours=6),
+        "12h": timedelta(hours=12),
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+        "30d": timedelta(days=30),
+        "1m": timedelta(days=30),
+    }
+    delta = range_map.get(time_range.lower(), timedelta(hours=24))
+
+    now_utc = datetime.now(timezone.utc)
+    cutoff_time = now_utc - delta
+    cutoff_naive = cutoff_time.replace(tzinfo=None)
 
     rows = (
         db.query(MarketSnapshot)
-        .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
-        .order_by(MarketSnapshot.timestamp.desc())
-        .limit(limit)
+        .filter(
+            MarketSnapshot.fiat == fiat.upper(),
+            MarketSnapshot.trade_type == trade_type,
+            MarketSnapshot.timestamp >= cutoff_naive
+        )
+        .order_by(MarketSnapshot.timestamp.asc())
         .all()
     )
-    rows.reverse()
-    tz_ni = timezone(timedelta(hours=-6))
+
+    # Si hay pocos o ningún registro en ese rango específico, asegurar devolver los más recientes disponibles
+    if not rows:
+        rows = (
+            db.query(MarketSnapshot)
+            .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
+            .order_by(MarketSnapshot.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        rows.reverse()
+
+    # Muestreo inteligente (downsampling) para rangos largos (ej: 7D o 1M con miles de puntos)
+    # asegurando que el gráfico en el frontend sea ultra fluido sin perder tendencias
+    total_rows = len(rows)
+    if total_rows > 350:
+        step = max(1, total_rows // 300)
+        sampled = [rows[i] for i in range(0, total_rows - 1, step)]
+        if rows[-1] not in sampled:
+            sampled.append(rows[-1])
+        rows = sampled
+
+    tz_ni = timezone(timedelta(hours=-6))  # Zona horaria de Nicaragua (UTC-6)
+    is_long_range = time_range.lower() in ("7d", "30d", "1m")
+
     result = []
     for r in rows:
         dt = r.timestamp
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         local_dt = dt.astimezone(tz_ni)
+        label_time = local_dt.strftime("%d/%m %I:%M %p") if is_long_range else local_dt.strftime("%I:%M %p")
+
         result.append({
             "timestamp": dt.isoformat(),
-            "timestamp_local": local_dt.strftime("%I:%M %p"),
+            "timestamp_local": label_time,
             "best_price": r.best_price,
             "avg_top5_price": r.avg_top5_price,
             "min_limit": r.min_limit,
