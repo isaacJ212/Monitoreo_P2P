@@ -10,8 +10,11 @@ services:
     env_file:
       - .env
     volumes:
-      # Montaje para persistir la base de datos SQLite fuera del contenedor
+      # Si usas SQLite local, monta el archivo para persistencia.
+      # Si usas Supabase (PostgreSQL en la nube), puedes omitir o comentar esta línea:
       - ./p2p_monitor.db:/app/p2p_monitor.db
+    depends_on:
+      - waha
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
       interval: 30s
@@ -19,3 +22,19 @@ services:
       retries: 3
       start_period: 10s
 
+  # Servidor de WhatsApp WAHA (WhatsApp HTTP API)
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha_whatsapp
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - WAHA_LOG_LEVEL=INFO
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WAHA_API_KEY=${WAHA_API_KEY:-}
+    volumes:
+      - waha_data:/app/.sessions
+
+volumes:
+  waha_data:

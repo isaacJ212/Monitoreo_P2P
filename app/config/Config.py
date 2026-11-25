@@ -3,28 +3,36 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./p2p_monitor.db"
+    SUPABASE_DATABASE_URL: str = ""  # Si se configura y conecta exitosamente, desactiva SQLite
     POLL_INTERVAL_MINUTES: int = 3
     ALERT_COOLDOWN_MINUTES: int = 20
+    REPORT_INTERVAL_MINUTES: int = 60  # Intervalo de informes periódicos (15 o 60 minutos)
+    ENABLE_PERIODIC_REPORTS: bool = True
 
     # Filtro de seguridad para comerciantes
     MIN_FINISH_RATE: float = 0.90
     MIN_MONTH_ORDERS: int = 10
     ONLY_VERIFIED_MERCHANTS: bool = False
 
-    # Configuración de correo SMTP
+    # Configuración de correo SMTP (Gmail u otro)
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     ALERT_EMAIL_TO: str = ""
 
-    # Configuración de Twilio (WhatsApp / SMS)
+    # Configuración de WAHA (WhatsApp HTTP API)
+    WAHA_API_URL: str = "http://localhost:3000/api/sendText"
+    WAHA_SESSION: str = "Binance"  # NÚMERO A: Sesión del bot/emisor que escaneó el QR en WAHA
+    WAHA_API_KEY: str = ""
+    WHATSAPP_RECIPIENT_NUMBER: str = ""  # NÚMERO B: Teléfono receptor (ej: 50588888888 o varios separados por coma)
+    WAHA_CHAT_ID: str = ""  # Retrocompatibilidad para número receptor
+
+    # Configuración de Twilio (opcional como fallback)
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""
     TWILIO_WHATSAPP_TO: str = ""
-    TWILIO_SMS_FROM: str = ""
-    TWILIO_SMS_TO: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

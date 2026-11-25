@@ -1,7 +1,7 @@
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -9,18 +9,21 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 
-from app.config.Config import FIAT_RULES
-from app.Database.database import Base, engine, get_db
+from app.config.Config import FIAT_RULES, settings
+from app.Database.database import Base, auto_sync_sqlite_to_target, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
-from app.scheduler import run_monitoring_cycle, scheduler, start_scheduler
-from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse
+from app.scheduler import run_monitoring_cycle, run_periodic_report, scheduler, start_scheduler
+from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse, SmartTargetResponse
+from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
-from app.Servicies.predictor import build_predictions
+from app.Servicies.predictor import build_predictions, calculate_smart_targets, get_historical_averages
+from app.Servicies.report_service import dispatch_market_report, generate_market_report
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    auto_sync_sqlite_to_target(engine)
     start_scheduler()
     yield
     scheduler.shutdown()
@@ -28,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Binance P2P Monitor & Predictor API",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
@@ -60,21 +63,28 @@ async def get_live_market(
     budget: float = Query(5000.0, gt=0),
     pay_type: str | None = None,
     only_merchants: bool = False,
+    db: Session = Depends(get_db),
 ):
-    
     fiat_code = fiat.upper()
+    asset_code = asset.upper()
     pay_types = [pay_type] if pay_type else []
-    buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset, budget, pay_types, only_merchants=only_merchants)
-    sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset, budget, pay_types, only_merchants=only_merchants)
+    buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset_code, budget, pay_types, only_merchants=only_merchants)
+    sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset_code, budget, pay_types, only_merchants=only_merchants)
+
+    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat_code, asset=asset_code)
+    avg_buy, avg_sell = get_historical_averages(db, fiat_code, asset_code)
 
     return LiveMarketResponse(
         fiat=fiat_code,
-        asset=asset.upper(),
+        asset=asset_code,
         checked_at=datetime.now(timezone.utc),
-        best_buy=buy_ads[0] if buy_ads else None,
+        best_buy=buy_ads[0] if buy_ads else None,   
         best_sell=sell_ads[0] if sell_ads else None,
         buy_ads=buy_ads[:10],
         sell_ads=sell_ads[:10],
+        arbitrage_match=arbitrage_match,
+        historical_avg_buy=avg_buy,
+        historical_avg_sell=avg_sell,
     )
 
 
@@ -88,30 +98,128 @@ def get_predictions(fiat: str, asset: str = "USDT", db: Session = Depends(get_db
 def get_price_history(
     fiat: str,
     trade_type: str = Query("BUY", pattern="^(BUY|SELL)$"),
-    limit: int = Query(100, ge=1, le=1000),
+    time_range: str | None = Query(None, pattern="^(1h|6h|12h|24h|7d|30d|1m)$"),
+    hours: float | None = Query(None),
+    start_time: str | None = Query(None),
+    end_time: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
+    tz_ni = timezone(timedelta(hours=-6))  # Zona horaria de Nicaragua (UTC-6)
+    now_utc = datetime.now(timezone.utc)
+    is_long_range = False
 
-    rows = (
-        db.query(MarketSnapshot)
-        .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
-        .order_by(MarketSnapshot.timestamp.desc())
-        .limit(limit)
-        .all()
-    )
-    rows.reverse()
-    return [
-        {
-            "timestamp": r.timestamp.isoformat(),
+    # 1. Filtro Manual por Fecha y Hora exacta (Desde / Hasta)
+    if start_time:
+        try:
+            st_clean = start_time.strip().replace(" ", "T")
+            start_dt = datetime.fromisoformat(st_clean)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=tz_ni)
+            start_utc = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+            if end_time:
+                et_clean = end_time.strip().replace(" ", "T")
+                end_dt = datetime.fromisoformat(et_clean)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=tz_ni)
+                end_utc = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                end_utc = now_utc.replace(tzinfo=None)
+
+            # Validar límites: mínimo 1 hora, máximo 31 días (1 mes)
+            diff = end_utc - start_utc
+            if diff < timedelta(hours=1):
+                start_utc = end_utc - timedelta(hours=1)
+            elif diff > timedelta(days=31):
+                start_utc = end_utc - timedelta(days=31)
+
+            query = (
+                db.query(MarketSnapshot)
+                .filter(
+                    MarketSnapshot.fiat == fiat.upper(),
+                    MarketSnapshot.trade_type == trade_type,
+                    MarketSnapshot.timestamp >= start_utc,
+                    MarketSnapshot.timestamp <= end_utc
+                )
+                .order_by(MarketSnapshot.timestamp.asc())
+            )
+            rows = query.all()
+            is_long_range = (end_utc - start_utc) > timedelta(hours=24)
+        except Exception:
+            rows = []
+    else:
+        # 2. Filtro Manual por Cantidad de Horas o Días (mínimo 1 hora, máximo 31 días = 744 horas)
+        if hours is not None:
+            clamped_hours = max(1.0, min(744.0, float(hours)))
+            delta = timedelta(hours=clamped_hours)
+        else:
+            range_map = {
+                "1h": timedelta(hours=1),
+                "6h": timedelta(hours=6),
+                "12h": timedelta(hours=12),
+                "24h": timedelta(hours=24),
+                "7d": timedelta(days=7),
+                "30d": timedelta(days=30),
+                "1m": timedelta(days=30),
+            }
+            preset = (time_range or "24h").lower()
+            delta = range_map.get(preset, timedelta(hours=24))
+
+        cutoff_utc = (now_utc - delta).replace(tzinfo=None)
+        rows = (
+            db.query(MarketSnapshot)
+            .filter(
+                MarketSnapshot.fiat == fiat.upper(),
+                MarketSnapshot.trade_type == trade_type,
+                MarketSnapshot.timestamp >= cutoff_utc
+            )
+            .order_by(MarketSnapshot.timestamp.asc())
+            .all()
+        )
+        is_long_range = delta > timedelta(hours=24)
+
+    # Si hay pocos o ningún registro en ese rango específico, asegurar devolver los más recientes disponibles
+    if not rows:
+        rows = (
+            db.query(MarketSnapshot)
+            .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
+            .order_by(MarketSnapshot.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        rows.reverse()
+        is_long_range = False
+
+    # Muestreo inteligente (downsampling) para rangos largos (ej: 7D o 1M con miles de puntos)
+    # asegurando que el gráfico en el frontend sea ultra fluido sin perder tendencias
+    total_rows = len(rows)
+    if total_rows > 350:
+        step = max(1, total_rows // 300)
+        sampled = [rows[i] for i in range(0, total_rows - 1, step)]
+        if rows[-1] not in sampled:
+            sampled.append(rows[-1])
+        rows = sampled
+
+    result = []
+    for r in rows:
+        dt = r.timestamp
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local_dt = dt.astimezone(tz_ni)
+        label_time = local_dt.strftime("%d/%m %I:%M %p") if is_long_range else local_dt.strftime("%I:%M %p")
+
+        result.append({
+            "timestamp": dt.isoformat(),
+            "timestamp_local": label_time,
             "best_price": r.best_price,
             "avg_top5_price": r.avg_top5_price,
             "min_limit": r.min_limit,
             "max_limit": r.max_limit,
-            "payment_methods": json.loads(r.payment_methods),
+            "payment_methods": json.loads(r.payment_methods) if isinstance(r.payment_methods, str) else r.payment_methods,
             "merchant_name": r.merchant_name,
-        }
-        for r in rows
-    ]
+        })
+    return result
 
 
 @app.get("/api/v1/alerts")
@@ -136,6 +244,11 @@ def get_rules():
     return FIAT_RULES
 
 
+@app.get("/api/v1/config/smart-targets/{fiat}", response_model=SmartTargetResponse)
+def get_smart_targets(fiat: str, asset: str = "USDT", db: Session = Depends(get_db)):
+    return calculate_smart_targets(db, fiat=fiat, asset=asset)
+
+
 @app.put("/api/v1/config/rules/{fiat}")
 def upsert_rule(fiat: str, rule: FiatRuleUpdate):
     if rule.buy_target >= rule.sell_target:
@@ -148,3 +261,46 @@ def upsert_rule(fiat: str, rule: FiatRuleUpdate):
 async def trigger_manual_cycle():
     result = await run_monitoring_cycle()
     return {"status": "completed", "summary": result}
+
+
+@app.post("/api/v1/reports/send-now")
+async def send_report_now(budget: float = Query(5000.0), db: Session = Depends(get_db)):
+    result = await dispatch_market_report(db, fiat="NIO", asset="USDT", budget=budget)
+    return result
+
+
+@app.get("/api/v1/reports/latest")
+async def get_latest_report(budget: float = Query(5000.0), db: Session = Depends(get_db)):
+    data = await generate_market_report(db, fiat="NIO", asset="USDT", budget=budget)
+    return data
+
+
+@app.get("/api/v1/config/report-settings")
+def get_report_settings():
+    return {
+        "interval_minutes": settings.REPORT_INTERVAL_MINUTES,
+        "enabled": settings.ENABLE_PERIODIC_REPORTS,
+        "email_to": settings.ALERT_EMAIL_TO,
+    }
+
+
+@app.put("/api/v1/config/report-settings")
+def update_report_settings(interval_minutes: int = Query(..., ge=5, le=1440), enabled: bool = Query(True)):
+    settings.REPORT_INTERVAL_MINUTES = interval_minutes
+    settings.ENABLE_PERIODIC_REPORTS = enabled
+
+    if scheduler.get_job("periodic_report_job"):
+        scheduler.remove_job("periodic_report_job")
+    if enabled:
+        scheduler.add_job(
+            run_periodic_report,
+            "interval",
+            minutes=interval_minutes,
+            id="periodic_report_job",
+            replace_existing=True,
+        )
+    return {
+        "interval_minutes": settings.REPORT_INTERVAL_MINUTES,
+        "enabled": settings.ENABLE_PERIODIC_REPORTS,
+        "status": "updated",
+    }

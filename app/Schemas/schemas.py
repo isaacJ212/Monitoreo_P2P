@@ -12,9 +12,79 @@ class AdDetail(BaseModel):
     available_asset: float
     payment_methods: list[str]
     merchant_name: str
+    merchant_user_no: str = ""
+    merchant_link: str = ""
     month_orders: int
     finish_rate_pct: float
     is_verified_merchant: bool
+    link: str = ""
+
+
+class ArbitragePair(BaseModel):
+    matched_bank: str
+    buy_merchant: str
+    buy_price: float
+    buy_min_limit: float
+    buy_max_limit: float
+    buy_link: str
+    buy_user_no: str = ""
+    buy_merchant_link: str = ""
+
+    sell_merchant: str
+    sell_price: float
+    sell_min_limit: float
+    sell_max_limit: float
+    sell_link: str
+    sell_user_no: str = ""
+    sell_merchant_link: str = ""
+
+    spread: float
+    roi_pct: float
+    gain_per_usdt: float
+    gain_per_1000_fiat: float
+    simulated_budget: float = 5000.0
+    usdt_obtained: float = 0.0
+    fiat_returned: float = 0.0
+    net_profit_fiat: float = 0.0
+    net_profit_pct: float = 0.0
+    is_profitable: bool
+    is_budget_within_limits: bool = True
+
+
+class ArbitrageMatch(BaseModel):
+    matched_bank: str
+    buy_merchant: str
+    buy_price: float
+    buy_min_limit: float
+    buy_max_limit: float
+    buy_payment_methods: list[str]
+    buy_link: str
+    buy_user_no: str = ""
+    buy_merchant_link: str = ""
+
+    sell_merchant: str
+    sell_price: float
+    sell_min_limit: float
+    sell_max_limit: float
+    sell_payment_methods: list[str]
+    sell_link: str
+    sell_user_no: str = ""
+    sell_merchant_link: str = ""
+
+    gross_spread: float
+    spread_pct: float
+    simulated_budget: float = 5000.0
+    usdt_obtained: float = 0.0
+    fiat_returned: float = 0.0
+    net_profit_fiat: float = 0.0
+    net_profit_pct: float = 0.0
+    gain_per_usdt: float = 0.0
+    gain_per_1000_fiat: float = 0.0
+    is_profitable: bool = False
+    is_budget_within_limits: bool = True
+    common_payment_methods: list[str] = []
+    recommendation: str = ""
+    top_matches: list[ArbitragePair] = []
 
 
 class LiveMarketResponse(BaseModel):
@@ -25,6 +95,9 @@ class LiveMarketResponse(BaseModel):
     best_sell: AdDetail | None
     buy_ads: list[AdDetail]
     sell_ads: list[AdDetail]
+    arbitrage_match: ArbitrageMatch | None = None
+    historical_avg_buy: float | None = None
+    historical_avg_sell: float | None = None
 
 
 class PredictionSide(BaseModel):
@@ -48,6 +121,16 @@ class HourlyPattern(BaseModel):
     sample_count: int = 0
 
 
+class ArbitrageWindow(BaseModel):
+    best_buy_hour: str
+    avg_buy_price: float
+    best_sell_hour: str
+    avg_sell_price: float
+    expected_spread: float
+    expected_roi_pct: float
+    insight: str
+
+
 class PaymentMethodStat(BaseModel):
     method: str
     frequency: int
@@ -56,8 +139,9 @@ class PaymentMethodStat(BaseModel):
 
 
 class TimePatternAnalysis(BaseModel):
-    best_hours_to_buy: list[str] = []   # Ej: ["08:00 AM", "09:00 AM"]
-    best_hours_to_sell: list[str] = []  # Ej: ["06:00 PM", "07:00 PM"]
+    best_hours_to_buy: list[str] = []
+    best_hours_to_sell: list[str] = []
+    best_arbitrage_window: ArbitrageWindow | None = None
     hourly_patterns: list[HourlyPattern] = []
     popular_payment_methods: list[PaymentMethodStat] = []
     overall_avg_min_limit: float = 0.0
@@ -72,6 +156,8 @@ class PredictionResponse(BaseModel):
     sell_analysis: PredictionSide
     historical_min_buy: float | None = None
     historical_max_sell: float | None = None
+    historical_avg_buy: float | None = None
+    historical_avg_sell: float | None = None
     time_patterns: TimePatternAnalysis | None = None
 
 
@@ -82,3 +168,18 @@ class FiatRuleUpdate(BaseModel):
     budget: float = Field(..., gt=0)
     pay_types: list[str] = []
     enabled: bool = True
+    auto_smart_mode: bool = False
+
+
+class SmartTargetResponse(BaseModel):
+    fiat: str
+    asset: str
+    suggested_buy_target: float
+    suggested_sell_target: float
+    historical_avg_buy: float
+    historical_avg_sell: float
+    spread: float
+    spread_pct: float
+    samples_used: int
+    insight: str
+

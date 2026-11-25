@@ -1,671 +1,1309 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>P2P Monitor & Predictor - USDT/NIO</title>
+  <title>Monitor P2P Nicaragua - Arbitraje Inteligente USDT/NIO</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              dark: '#0b0f19',
-              card: '#111827',
-              border: '#1f2937',
-              accent: '#3b82f6',
-              buy: '#10b981',
-              sell: '#f43f5e'
-            }
-          }
-        }
-      }
-    }
-  </script>
   <style>
-    body { background-color: #0b0f19; color: #e5e7eb; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 600; }
+    body {
+      background-color: #0b0f19;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .box-clean {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 0.875rem;
+    }
+    .bank-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.375rem;
+      font-size: 0.70rem;
+      font-weight: 600;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+    }
+    .clickable-row {
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+    }
+    .clickable-row:hover {
+      background-color: rgba(30, 41, 59, 0.6);
+    }
+    .selected-buy {
+      background-color: rgba(16, 185, 129, 0.18) !important;
+      border-left: 4px solid #10b981 !important;
+    }
+    .selected-sell {
+      background-color: rgba(244, 63, 94, 0.18) !important;
+      border-left: 4px solid #f43f5e !important;
+    }
+    .matched-pair-row {
+      background-color: rgba(245, 158, 11, 0.18) !important;
+      border-left: 4px solid #f59e0b !important;
+    }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="min-h-screen flex flex-col pb-12">
 
-  <!-- Header -->
-  <header class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pb-6 border-b border-gray-800">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-yellow-500 to-amber-300 flex items-center justify-center font-bold text-gray-950 text-xl shadow-lg shadow-yellow-500/20">
-        ₮
-      </div>
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          Monitoreo P2P Binance <span class="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold">USDT / NIO</span>
-        </h1>
-        <p class="text-xs text-gray-400">Predicciones estadísticas, horarios óptimos y alertas de compra/venta en Nicaragua</p>
-      </div>
-    </div>
-
-    <!-- Actions & Controls -->
-    <div class="flex items-center gap-3 flex-wrap">
-      <div class="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs">
-        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span id="last-update" class="text-gray-300">Conectando...</span>
+  <!-- ENCABEZADO -->
+  <header class="border-b border-gray-800 bg-gray-950 sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500 text-gray-950 flex items-center justify-center font-black text-xl shadow">
+          ₮
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white flex items-center gap-2">
+            Monitor P2P Nicaragua <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-mono">USDT / NIO</span>
+          </h1>
+          <p class="text-xs text-gray-400">Arbitraje por banco coincidente, top 3 jugadas ganadoras y predicción</p>
+        </div>
       </div>
 
-      <select id="auto-refresh" onchange="cambiarIntervalo()" class="bg-gray-900 border border-gray-800 text-xs rounded-lg px-3 py-2 text-gray-300 focus:outline-none focus:border-blue-500">
-        <option value="10000">Refresco: 10s</option>
-        <option value="30000" selected>Refresco: 30s</option>
-        <option value="60000">Refresco: 1 min</option>
-        <option value="0">Refresco: Pausado</option>
-      </select>
+      <div class="flex items-center gap-2">
+        <span class="hidden sm:inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Hora actual: <b id="clock-live" class="text-gray-200">--:--</b>
+        </span>
 
-      <button onclick="escanearMercado()" id="btn-scan" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow-lg shadow-blue-600/20 active:scale-95">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-        <span>Escanear Ahora</span>
-      </button>
+        <button onclick="escanearMercado()" id="btn-scan" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition active:scale-95 shadow">
+          <svg id="scan-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>Escanear Ahora</span>
+        </button>
 
-      <button onclick="abrirConfigModal()" class="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium text-xs px-3 py-2 rounded-lg transition border border-gray-700">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-        <span>Objetivos</span>
-      </button>
+        <button onclick="abrirConfigModal()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 p-2 rounded-lg text-xs border border-gray-700" title="Configurar Alertas">
+          ⚙️
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- Banner de Estado de Alertas -->
-  <div id="alert-banner" class="max-w-7xl mx-auto mt-4 hidden">
-    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between text-amber-300 text-sm">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">🔔</span>
-        <span id="alert-banner-text">¡Alerta de oportunidad detectada en el mercado!</span>
-      </div>
-      <button onclick="document.getElementById('alert-banner').classList.add('hidden')" class="text-amber-400 hover:text-amber-200 text-xs">Cerrar</button>
-    </div>
-  </div>
+  <!-- CONTENEDOR PRINCIPAL DIVIDIDO EN 5 SECCIONES CLARAS -->
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-8 flex-1 w-full">
 
-  <main class="max-w-7xl mx-auto mt-6 space-y-6">
-
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      
-      <!-- Mejor Compra -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
-        <div class="absolute -right-3 -top-3 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
-        <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wider">🟢 Mejor Compra (BUY)</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-best-buy" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO/USDT</span>
-        </div>
-        <div class="mt-2 text-xs text-gray-400 flex flex-col gap-0.5">
-          <span id="kpi-merchant-buy">Comerciante: --</span>
-          <span id="kpi-limits-buy">Límites: --</span>
-        </div>
-      </div>
-
-      <!-- Mejor Venta -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
-        <div class="absolute -right-3 -top-3 w-16 h-16 bg-rose-500/10 rounded-full blur-xl"></div>
-        <p class="text-xs text-rose-400 font-semibold uppercase tracking-wider">🔴 Mejor Venta (SELL)</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-best-sell" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO/USDT</span>
-        </div>
-        <div class="mt-2 text-xs text-gray-400 flex flex-col gap-0.5">
-          <span id="kpi-merchant-sell">Comerciante: --</span>
-          <span id="kpi-limits-sell">Límites: --</span>
-        </div>
-      </div>
-
-      <!-- Spread / Margen -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
-        <p class="text-xs text-blue-400 font-semibold uppercase tracking-wider">📊 Margen / Spread</p>
-        <div class="mt-2 flex items-baseline gap-2">
-          <span id="kpi-spread" class="text-3xl font-extrabold text-white">--.--</span>
-          <span class="text-xs text-gray-400">NIO</span>
-        </div>
-        <div class="mt-2 text-xs text-gray-400">
-          <span id="kpi-spread-pct" class="font-medium text-gray-300">Margen estimado: --%</span>
-        </div>
-      </div>
-
-      <!-- Objetivos Configurados -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-sm">
-        <p class="text-xs text-amber-400 font-semibold uppercase tracking-wider">🎯 Tus Objetivos de Alerta</p>
-        <div class="mt-2 text-sm text-gray-200 flex flex-col gap-1">
-          <div class="flex justify-between">
-            <span class="text-gray-400">Avisar Compra Barata &le;:</span>
-            <span id="rule-buy-target" class="font-bold text-emerald-400">-- NIO</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-400">Avisar Venta Cara &ge;:</span>
-            <span id="rule-sell-target" class="font-bold text-rose-400">-- NIO</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-400">Presupuesto Simulado:</span>
-            <span id="rule-budget" class="font-semibold text-gray-300">-- NIO</span>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Sección de Predicción y Patrones Horarios -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-      <!-- Análisis Predictivo -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>🧠</span> Predicción Matemática (NumPy)
+    <!-- SECCIÓN 1: TU CAPITAL Y TOP 3 JUGADAS GANADORAS -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+          <span>1️⃣</span> Tu Capital & Top 3 Jugadas Ganadoras de Arbitraje
         </h2>
-
-        <div class="bg-gray-950/60 rounded-lg p-3 border border-gray-800/80 space-y-2">
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Tendencia General:</span>
-            <span id="pred-trend" class="badge bg-gray-800 text-gray-300">Cargando...</span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Z-Score (Desviación):</span>
-            <span id="pred-zscore" class="font-mono text-gray-300">--</span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Proyección +30 min:</span>
-            <span id="pred-proj-30" class="font-bold text-blue-400">-- NIO</span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-gray-400">Proyección +60 min:</span>
-            <span id="pred-proj-60" class="font-bold text-blue-300">-- NIO</span>
-          </div>
-        </div>
-
-        <div class="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-200">
-          <p class="font-semibold mb-1">Recomendación Actual:</p>
-          <p id="pred-recommendation">Analizando histórico...</p>
-        </div>
+        <span id="badge-match-mode" class="text-xs bg-gray-800 text-gray-300 px-2.5 py-1 rounded border border-gray-700">Top 3 Opciones Rentables</span>
       </div>
 
-      <!-- Horarios Óptimos en Nicaragua -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>⏰</span> Mejores Horas para Operar (Nicaragua)
+      <div class="box-clean p-6 border-amber-500/40 bg-gradient-to-b from-gray-900 to-gray-950 shadow-xl space-y-5">
+        
+        <!-- Input de Capital del Usuario -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-950 p-4 rounded-xl border border-gray-800">
+          <div>
+            <label class="block text-xs font-bold text-gray-300">¿Cuánto dinero (Córdobas) tienes para operar?</label>
+            <p class="text-[11px] text-gray-500">Calcula tu ganancia exacta y verifica la compatibilidad de límites en vivo</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-mono font-bold text-sm">C$</span>
+              <input type="number" id="input-user-capital" value="5000" step="500" min="200" oninput="cambiarCapitalManual()" class="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-white font-mono font-bold text-base w-40 focus:outline-none focus:border-amber-400">
+            </div>
+            <div class="flex gap-1 text-xs">
+              <button onclick="setCapital(2000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">2K</button>
+              <button onclick="setCapital(5000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">5K</button>
+              <button onclick="setCapital(10000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">10K</button>
+              <button onclick="setCapital(20000)" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-2 rounded-lg font-mono">20K</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTENEDOR DE LAS 3 JUGADAS GANADORAS -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-400">Las 3 Mejores Estrategias con tu Capital:</span>
+            <span class="text-[11px] text-emerald-400 font-medium">Bancos coincidentes verificados</span>
+          </div>
+
+          <div id="container-top-plays" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+            <div class="bg-gray-950 p-5 rounded-xl border border-gray-800 text-center text-xs text-gray-500 py-12">
+              Cargando las mejores jugadas de arbitraje...
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-300 bg-gray-950 p-3 rounded-lg border border-gray-800" id="card-match-insight">
+          Cargando análisis de mercado en tiempo real...
+        </p>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 2: MERCADO EN VIVO Y EMPAREJAMIENTO INTERACTIVO -->
+    <section class="space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+          <span>2️⃣</span> Mercado en Vivo (Haz Clic en Cualquier Fila para Emparejar)
         </h2>
+        <span class="text-xs text-gray-400 font-sans">💡 Toca cualquier fila para emparejarla al instante con su contraparte del mismo banco</span>
+      </div>
 
-        <div class="space-y-3 text-xs">
-          <div class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <span class="font-semibold text-emerald-400 block mb-1">🛒 Horas recomendadas para COMPRAR barato:</span>
-            <div id="best-buy-hours" class="flex gap-2 flex-wrap text-emerald-300 font-mono">--</div>
+      <!-- PANEL DE EMPAREJAMIENTO EN VIVO SELECCIONADO (DIRECTO SOBRE LAS TABLAS) -->
+      <div id="panel-interactive-match" class="p-4 rounded-xl border border-blue-500/40 bg-gradient-to-r from-blue-950/70 via-gray-900 to-blue-950/70 transition-all duration-300 shadow-lg">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-xs text-blue-200">
+            <span class="text-lg">👆</span>
+            <div>
+              <b class="text-white">Emparejador Interactivo Activo:</b>
+              <span class="text-gray-300 ml-1">Haz clic en cualquier anuncio de compra (verde) o venta (rojo) abajo para ver su contraparte.</span>
+            </div>
+          </div>
+          <button id="btn-reset-match" onclick="resetearMatchAutomatico()" class="hidden bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3 py-1.5 rounded-lg border border-gray-700 transition">
+            ✖ Restaurar a Match Automático
+          </button>
+        </div>
+        <div id="interactive-match-details" class="hidden mt-3 pt-3 border-t border-blue-900/50">
+          <!-- Se inyecta dinámicamente -->
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- TABLA COMPRAS (MENOR PRECIO PRIMERO) -->
+        <div class="box-clean p-5">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+            <div>
+              <h3 class="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                <span>🛒</span> Dónde Comprar USDT Barato (Top 10)
+              </h3>
+              <p class="text-[11px] text-gray-400">Ordenados del precio más bajo al más alto</p>
+            </div>
+            <span class="text-xs text-gray-500 font-mono" id="label-buy-count">10 anuncios</span>
           </div>
 
-          <div class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20">
-            <span class="font-semibold text-rose-400 block mb-1">💰 Horas recomendadas para VENDER caro:</span>
-            <div id="best-sell-hours" class="flex gap-2 flex-wrap text-rose-300 font-mono">--</div>
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-gray-800 text-[11px]">
+                  <th class="pb-2">Comerciante</th>
+                  <th class="pb-2">Precio (NIO)</th>
+                  <th class="pb-2">Límites Min - Max</th>
+                  <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Binance</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-buys" class="divide-y divide-gray-800/60 font-mono">
+                <tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TABLA VENTAS (MAYOR PRECIO PRIMERO) -->
+        <div class="box-clean p-5">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+            <div>
+              <h3 class="text-sm font-bold text-rose-400 flex items-center gap-1.5">
+                <span>💰</span> Dónde Vender USDT Caro (Top 10)
+              </h3>
+              <p class="text-[11px] text-gray-400">Ordenados del que más te paga en Córdobas</p>
+            </div>
+            <span class="text-xs text-gray-500 font-mono" id="label-sell-count">10 anuncios</span>
           </div>
 
-          <p id="time-insight" class="text-gray-400 text-xs italic">Cargando análisis de patrones horarios...</p>
+          <div class="mt-3 overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-gray-800 text-[11px]">
+                  <th class="pb-2">Comerciante</th>
+                  <th class="pb-2">Precio (NIO)</th>
+                  <th class="pb-2">Límites Min - Max</th>
+                  <th class="pb-2">Bancos</th>
+                  <th class="pb-2 text-right">Binance</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-sells" class="divide-y divide-gray-800/60 font-mono">
+                <tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">Cargando anuncios...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <!-- Métodos de Pago más Utilizados -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm space-y-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>💳</span> Métodos de Pago y Límites Promedio
+      </div>
+    </section>
+
+    <!-- SECCIÓN 3: LÍNEA DE TIEMPO DE PRECIOS EN VIVO (HORA EXACTA DE NICARAGUA) -->
+    <section class="space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+          <span>3️⃣</span> Línea de Tiempo de Precios (Hora de Nicaragua)
         </h2>
-        <div id="payment-methods-list" class="space-y-2 text-xs">
-          <p class="text-gray-500">Cargando métodos de pago...</p>
-        </div>
+        <span class="text-xs text-gray-400 font-sans">💡 Filtra los datos tú mismo: por número de horas o seleccionando el rango de fechas</span>
       </div>
 
-    </div>
+      <div class="box-clean p-5 space-y-4">
+        
+        <!-- PANEL DE FILTRADO MANUAL -->
+        <div class="bg-gray-950/90 p-4 rounded-xl border border-gray-800 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-900">
+            <span class="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+              <span>⚙️</span> Panel de Filtrado Manual (Mínimo: 1 hora | Máximo: 1 mes):
+            </span>
 
-    <!-- Gráfica Histórica -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-base font-semibold text-white flex items-center gap-2">
-          <span>📈</span> Evolución de Precios Históricos (BUY vs SELL)
+            <!-- Botones de atajo rápido -->
+            <div class="flex items-center gap-1 text-xs font-mono">
+              <span class="text-gray-400 text-[11px] mr-1 hidden sm:inline">Atajos:</span>
+              <button type="button" onclick="aplicarPreset('1h')" id="btn-range-1h" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold" title="Última 1 hora (Mínimo)">1H (Mín)</button>
+              <button type="button" onclick="aplicarPreset('6h')" id="btn-range-6h" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold">6H</button>
+              <button type="button" onclick="aplicarPreset('24h')" id="btn-range-24h" class="timeline-range-btn px-2.5 py-1 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40 font-bold">24H</button>
+              <button type="button" onclick="aplicarPreset('7d')" id="btn-range-7d" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold">7D</button>
+              <button type="button" onclick="aplicarPreset('1m')" id="btn-range-1m" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold" title="Último 1 mes (Máximo)">1M (Máx)</button>
+            </div>
+          </div>
+
+          <!-- Controles de selección manual -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            
+            <!-- Modo A: Filtro manual por cantidad de horas o días -->
+            <div class="md:col-span-4 bg-gray-900/60 p-2.5 rounded-lg border border-gray-800/80">
+              <label class="block text-[11px] font-bold text-sky-300 mb-1">
+                ⏱️ Opción 1: Últimas X Horas/Días:
+              </label>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="manual-hours-input" min="1" max="744" value="24" class="w-full bg-gray-950 border border-gray-700 rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-sky-500 focus:outline-none">
+                <select id="manual-hours-unit" class="bg-gray-950 border border-gray-700 rounded px-2 py-1.5 text-white text-xs focus:border-sky-500 focus:outline-none font-bold">
+                  <option value="hours" selected>Horas</option>
+                  <option value="days">Días</option>
+                </select>
+                <button type="button" onclick="aplicarFiltroPorTiempo()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold text-xs transition whitespace-nowrap shadow">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+
+            <!-- Modo B: Filtro manual por rango de fechas (Desde / Hasta) -->
+            <div class="md:col-span-8 bg-gray-900/60 p-2.5 rounded-lg border border-gray-800/80">
+              <label class="block text-[11px] font-bold text-emerald-300 mb-1">
+                📅 Opción 2: Rango manual de Fechas (Hora Nicaragua):
+              </label>
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                <div class="sm:col-span-5">
+                  <input type="datetime-local" id="manual-start-dt" class="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none" title="Fecha y Hora de Inicio">
+                </div>
+                <div class="sm:col-span-5">
+                  <input type="datetime-local" id="manual-end-dt" class="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none" title="Fecha y Hora de Fin">
+                </div>
+                <div class="sm:col-span-2 flex gap-1">
+                  <button type="button" onclick="aplicarFiltroPorFechas()" class="w-full py-1 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-xs transition shadow" title="Filtrar por estas fechas">
+                    Filtrar
+                  </button>
+                  <button type="button" onclick="resetFiltroManual()" class="py-1 px-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold text-xs transition" title="Restablecer a 24 horas">
+                    ↺
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Estado del filtro activo -->
+          <div class="flex flex-wrap items-center justify-between text-[11px] font-mono text-gray-400 pt-1 border-t border-gray-900">
+            <span id="label-active-filter">Filtro activo: Últimas 24 horas (Hora de Nicaragua UTC-6)</span>
+            <span id="label-active-points" class="text-sky-400 font-bold">Cargando puntos...</span>
+          </div>
+        </div>
+
+        <!-- Tarjeta emergente con datos del punto cliqueado -->
+        <div id="chart-point-details" class="p-3 bg-gray-950 rounded-lg border border-gray-800 text-xs flex flex-wrap items-center justify-between gap-2">
+          <span class="text-gray-400">Toca un punto en la línea para ver qué comerciante y precio había en ese momento exacto.</span>
+        </div>
+
+        <div class="h-64 w-full">
+          <canvas id="canvas-timeline"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCIÓN 4: GRÁFICO PREDICTIVO DE LAS 24 HORAS (DÓNDE COMPRAR Y VENDER HOY) -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+          <span>4️⃣</span> Predicción de Precios por Hora en Nicaragua (24 Horas)
         </h2>
-        <span class="text-xs text-gray-500">Instantáneas guardadas por el programador</span>
+        <span class="text-xs text-gray-400">Calculado a partir de los datos históricos guardados</span>
       </div>
-      <div class="h-64 w-full">
-        <canvas id="priceChart"></canvas>
-      </div>
-    </div>
 
-    <!-- Tablas de Anuncios P2P Detallados -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-      <!-- Tabla de Compras -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-          <h2 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🟢</span> Anuncios para COMPRAR USDT (NIO &rarr; USDT)
-          </h2>
-          <span id="count-buy-ads" class="text-xs text-gray-400 font-mono">0 anuncios</span>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        
+        <!-- Gráfico de barras de las 24 horas -->
+        <div class="box-clean p-5 lg:col-span-2 space-y-3">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-white">Precios Promedio Esperados a lo largo del Día</span>
+            <div class="flex gap-3 text-[11px] font-mono">
+              <span class="text-emerald-400">■ Compra Barata</span>
+              <span class="text-rose-400">■ Venta Cara</span>
+            </div>
+          </div>
+          <div class="h-56 w-full">
+            <canvas id="canvas-24h-prediction"></canvas>
+          </div>
         </div>
-        <div class="mt-3 overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead>
-              <tr class="text-gray-500 border-b border-gray-800/80">
-                <th class="pb-2">Comerciante</th>
-                <th class="pb-2">Precio</th>
-                <th class="pb-2">Límites (NIO)</th>
-                <th class="pb-2">Métodos de Pago</th>
-              </tr>
-            </thead>
-            <tbody id="table-buy-body" class="divide-y divide-gray-800/50">
-              <tr><td colspan="4" class="py-4 text-center text-gray-500">Cargando anuncios...</td></tr>
-            </tbody>
-          </table>
+
+        <!-- Consejos prácticos de horarios -->
+        <div class="box-clean p-5 flex flex-col justify-between space-y-3">
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-2">Recomendación para Hoy</h3>
+            <div class="space-y-2 text-xs">
+              <div class="p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-900/40">
+                <span class="text-emerald-400 font-bold block">🛒 Horas recomendadas de COMPRA:</span>
+                <div id="text-best-buy-hours" class="font-mono text-emerald-200 mt-1 font-bold">--</div>
+              </div>
+
+              <div class="p-2.5 rounded-lg bg-rose-950/60 border border-rose-900/40">
+                <span class="text-rose-400 font-bold block mb-1">💰 Horas recomendadas de VENTA:</span>
+                <div id="text-best-sell-hours" class="font-mono text-rose-200 mt-1 font-bold">--</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-gray-400 italic bg-gray-950 p-2.5 rounded-lg border border-gray-800" id="text-daily-summary">
+            El sistema recopila datos continuamente cada 3 minutos para afinar las predicciones.
+          </p>
         </div>
+
+      </div>
+    </section>
+
+    <!-- SECCIÓN 5: CANALES DE ALERTA Y CONFIGURACIÓN -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-purple-400 flex items-center gap-2">
+          <span>5️⃣</span> Alertas Automáticas (WhatsApp WAHA y Correo)
+        </h2>
+        <button onclick="abrirConfigModal()" class="text-xs text-blue-400 hover:underline">Editar mis metas de precio</button>
       </div>
 
-      <!-- Tabla de Ventas -->
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-        <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-          <h2 class="text-sm font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-            <span>🔴</span> Anuncios para VENDER USDT (USDT &rarr; NIO)
-          </h2>
-          <span id="count-sell-ads" class="text-xs text-gray-400 font-mono">0 anuncios</span>
+      <div class="box-clean p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div class="p-3 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">💬</span>
+              <div>
+                <b class="text-white block">WhatsApp WAHA</b>
+                <span class="text-gray-400 text-[11px]">Envía la jugada ganadora formateada con enlaces</span>
+              </div>
+            </div>
+            <span class="text-emerald-400 font-bold text-[11px]">Activo</span>
+          </div>
+
+          <div class="p-3 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">✉️</span>
+              <div>
+                <b class="text-white block">Correo Electrónico (Gmail)</b>
+                <span class="text-gray-400 text-[11px]" id="label-email-dest">isaac290906@gmail.com</span>
+              </div>
+            </div>
+            <span class="text-emerald-400 font-bold text-[11px]">Conectado</span>
+          </div>
         </div>
-        <div class="mt-3 overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead>
-              <tr class="text-gray-500 border-b border-gray-800/80">
-                <th class="pb-2">Comerciante</th>
-                <th class="pb-2">Precio</th>
-                <th class="pb-2">Límites (NIO)</th>
-                <th class="pb-2">Métodos de Pago</th>
-              </tr>
-            </thead>
-            <tbody id="table-sell-body" class="divide-y divide-gray-800/50">
-              <tr><td colspan="4" class="py-4 text-center text-gray-500">Cargando anuncios...</td></tr>
-            </tbody>
-          </table>
+
+        <!-- PANEL DE INFORMES PERIÓDICOS (15 MIN / 1 HORA) Y PRUEBA EN VIVO -->
+        <div class="bg-gray-950 p-4 rounded-xl border border-purple-900/40 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-800">
+            <div>
+              <b class="text-sm font-bold text-purple-300 flex items-center gap-1.5">
+                <span>📊</span> Informes Detallados del Mercado
+              </b>
+              <p class="text-[11px] text-gray-400">Recibe resúmenes periódicos con los precios en vivo, predicciones y las top 3 jugadas ganadoras.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="select-report-interval" onchange="cambiarFrecuenciaInforme(this.value)" class="bg-gray-900 border border-gray-700 text-purple-300 font-bold text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-400">
+                <option value="15">Cada 15 minutos</option>
+                <option value="60" selected>Cada 1 hora (Recomendado)</option>
+                <option value="0">Desactivado</option>
+              </select>
+              <button onclick="enviarInformeAhora()" id="btn-send-report" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition shadow active:scale-95">
+                <span>✉️ Enviar a mi Correo Ahora</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div class="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-900/40">
+              <span class="font-bold text-emerald-400 block mb-1">🟢 Alertas de Compra (Acción Separada):</span>
+              <p class="text-gray-300 text-[11px]">Se envían cuando el USDT cae por debajo de tu precio meta para que compres y acumules.</p>
+            </div>
+            <div class="p-2.5 rounded-lg bg-rose-950/40 border border-rose-900/40">
+              <span class="font-bold text-rose-400 block mb-1">🔴 Alertas de Venta (Acción Separada):</span>
+              <p class="text-gray-300 text-[11px]">Se envían cuando el USDT sube por encima de tu meta para que vendas y cobres más Córdobas.</p>
+            </div>
+          </div>
+          <p id="msg-report-status" class="hidden text-xs font-bold text-emerald-400 bg-emerald-950/60 p-2 rounded border border-emerald-800 text-center"></p>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-bold text-gray-300 mb-2">Últimos avisos enviados:</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-gray-800 text-[11px]">
+                  <th class="pb-2">Fecha / Hora</th>
+                  <th class="pb-2">Señal</th>
+                  <th class="pb-2">Precio o Ganancia</th>
+                  <th class="pb-2">Canales</th>
+                  <th class="pb-2">Detalle</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-alerts-log" class="divide-y divide-gray-800/50">
+                <tr><td colspan="5" class="py-3 text-center text-gray-500">Cargando registros...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-    </div>
-
-    <!-- Registro de Alertas Disparadas -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-sm">
-      <h2 class="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-        <span>📜</span> Historial de Alertas Recientes Enviadas
-      </h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs">
-          <thead>
-            <tr class="text-gray-500 border-b border-gray-800">
-              <th class="pb-2">Fecha/Hora</th>
-              <th class="pb-2">Tipo de Señal</th>
-              <th class="pb-2">Precio Detectado</th>
-              <th class="pb-2">Canales</th>
-              <th class="pb-2">Mensaje / Detalle</th>
-            </tr>
-          </thead>
-          <tbody id="table-alerts-body" class="divide-y divide-gray-800/50">
-            <tr><td colspan="5" class="py-3 text-center text-gray-500">Cargando registro de alertas...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </section>
 
   </main>
 
-  <!-- Modal de Configuración de Objetivos -->
-  <div id="modal-config" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+  <!-- MODAL CONFIGURACIÓN DE METAS INTELIGENTES -->
+  <div id="modal-rules" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
+    <div class="box-clean max-w-md w-full p-6 space-y-4 shadow-2xl border border-gray-700">
       <div class="flex items-center justify-between pb-3 border-b border-gray-800">
-        <h3 class="font-bold text-white text-base flex items-center gap-2">
-          <span>🎯</span> Configuración de Alertas (NIO)
-        </h3>
-        <button onclick="cerrarConfigModal()" class="text-gray-400 hover:text-white">&times;</button>
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+            <span>⚙️</span> Configurar Metas de Precio
+          </h3>
+          <p class="text-[11px] text-gray-400">Alertas automáticas por WhatsApp y Correo</p>
+        </div>
+        <button onclick="cerrarConfigModal()" class="text-gray-400 hover:text-white text-lg">&times;</button>
       </div>
 
-      <form id="form-config" onsubmit="guardarReglas(event)" class="space-y-4 text-xs">
+      <!-- BOTÓN DE AUTO-CÁLCULO INTELIGENTE -->
+      <div class="bg-indigo-950/60 p-3.5 rounded-xl border border-indigo-500/30 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-indigo-300 flex items-center gap-1">
+            <span>🤖</span> Calibración Estadística Inteligente
+          </span>
+          <button type="button" onclick="autoCalcularMetasInteligentes()" id="btn-smart-calc" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] px-2.5 py-1 rounded transition">
+            Auto-Calcular Ahora
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-300" id="txt-smart-insight">
+          Calcula automáticamente los precios óptimos de compra y venta según los percentiles históricos reales de Nicaragua.
+        </p>
+      </div>
+
+      <form onsubmit="guardarReglas(event)" class="space-y-4 text-xs">
         <div>
-          <label class="block text-gray-400 mb-1">Avisarme si la COMPRA baja de (NIO):</label>
-          <input type="number" step="0.01" id="input-buy-target" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[10px]">Ejemplo: 36.80 (si alguien vende a 36.80 o menos, te avisa).</span>
+          <label class="block text-gray-300 font-medium mb-1">Avisarme si la COMPRA cae a &le; (NIO):</label>
+          <input type="number" step="0.01" id="cfg-buy" required class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-blue-500">
+          <span class="text-gray-500 text-[11px]">Si alguien vende USDT a este precio o menos, se dispara la alerta.</span>
         </div>
 
         <div>
-          <label class="block text-gray-400 mb-1">Avisarme si la VENTA sube de (NIO):</label>
-          <input type="number" step="0.01" id="input-sell-target" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
-          <span class="text-gray-500 text-[10px]">Ejemplo: 40.00 (si alguien compra a 40.00 o más, te avisa).</span>
-        </div>
-
-        <div>
-          <label class="block text-gray-400 mb-1">Presupuesto Simulado a Operar (NIO):</label>
-          <input type="number" step="100" id="input-budget" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+          <label class="block text-gray-300 font-medium mb-1">Avisarme si la VENTA sube a &ge; (NIO):</label>
+          <input type="number" step="0.01" id="cfg-sell" required class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-blue-500">
+          <span class="text-gray-500 text-[11px]">Si alguien compra USDT a este precio o más, se dispara la alerta.</span>
         </div>
 
         <div class="pt-3 flex justify-end gap-2 border-t border-gray-800">
           <button type="button" onclick="cerrarConfigModal()" class="px-4 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold">Guardar Cambios</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold">Guardar Metas</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Script Lógica Frontend -->
+  <!-- LÓGICA JAVASCRIPT COMPLETA -->
   <script>
-    let timerId = null;
-    let chartInstance = null;
-    const API_BASE = '/api/v1';
+    let timelineChart = null;
+    let predictionChart = null;
+    let currentFilterQuery = 'time_range=24h';
+    let rawLiveBuys = [];
+    let rawLiveSells = [];
+    let historyPoints = [];
+    let autoMatch = null;
+    let topMatchesList = [];
+    let selectedManualBuy = null;
+    let selectedManualSell = null;
+    const API = '/api/v1';
+
+    // Normalizador de nombres de bancos
+    function cleanBankName(raw) {
+      const n = (raw || '').toLowerCase();
+      if (n.includes('bac')) return 'BAC Credomatic';
+      if (n.includes('lafise')) return 'Banco LAFISE';
+      if (n.includes('banpro') || n.includes('billetera')) return 'Banpro';
+      if (n.includes('transfer')) return 'Transferencia Bancaria';
+      return raw.trim();
+    }
 
     async function cargarTodo() {
       await Promise.all([
-        cargarMercadoEnVivo(),
-        cargarPredicciones(),
-        cargarHistorial(),
-        cargarReglas(),
-        cargarAlertas()
+        obtenerMercado(),
+        obtenerPredicciones(),
+        obtenerHistorial(),
+        obtenerAlertas(),
+        obtenerMetas(),
+        obtenerConfiguracionInforme()
       ]);
     }
 
-    async function cargarMercadoEnVivo() {
+    async function obtenerMercado() {
+      const capital = parseFloat(document.getElementById('input-user-capital').value) || 5000;
       try {
-        const res = await fetch(`${API_BASE}/live/NIO?budget=2000`);
-        if (!res.ok) throw new Error('Error al consultar mercado');
+        const res = await fetch(`${API}/live/NIO?budget=${capital}`);
+        if (!res.ok) return;
         const data = await res.json();
 
-        document.getElementById('last-update').innerText = new Date(data.checked_at).toLocaleTimeString('es-NI');
+        document.getElementById('clock-live').innerText = new Date(data.checked_at).toLocaleTimeString('es-NI');
+        rawLiveBuys = data.buy_ads || [];
+        rawLiveSells = data.sell_ads || [];
+        autoMatch = data.arbitrage_match;
+        topMatchesList = (autoMatch && autoMatch.top_matches) || [];
 
-        // Best Buy
-        if (data.best_buy) {
-          document.getElementById('kpi-best-buy').innerText = data.best_buy.price.toFixed(2);
-          document.getElementById('kpi-merchant-buy').innerText = `Comerciante: ${data.best_buy.merchant_name} (${data.best_buy.finish_rate_pct}% en ${data.best_buy.month_orders} ord.)`;
-          document.getElementById('kpi-limits-buy').innerText = `Mín C$${data.best_buy.min_limit.toLocaleString()} - Máx C$${data.best_buy.max_limit.toLocaleString()}`;
+        // Si top_matches está vacío, agregar el autoMatch
+        if (topMatchesList.length === 0 && autoMatch) {
+          topMatchesList = [autoMatch];
+        }
+
+        // Renderizar las 3 jugadas ganadoras
+        renderTop3Plays(topMatchesList, capital);
+
+        // Si no hay selección manual activa, mantener panel de emparejamiento interactivo en reposo
+        if (!selectedManualBuy && !selectedManualSell) {
+          document.getElementById('btn-reset-match').classList.add('hidden');
+          document.getElementById('interactive-match-details').classList.add('hidden');
         } else {
-          document.getElementById('kpi-best-buy').innerText = 'Sin anuncios';
+          recalcularMatchSeleccionado();
         }
 
-        // Best Sell
-        if (data.best_sell) {
-          document.getElementById('kpi-best-sell').innerText = data.best_sell.price.toFixed(2);
-          document.getElementById('kpi-merchant-sell').innerText = `Comerciante: ${data.best_sell.merchant_name} (${data.best_sell.finish_rate_pct}% en ${data.best_sell.month_orders} ord.)`;
-          document.getElementById('kpi-limits-sell').innerText = `Mín C$${data.best_sell.min_limit.toLocaleString()} - Máx C$${data.best_sell.max_limit.toLocaleString()}`;
-        } else {
-          document.getElementById('kpi-best-sell').innerText = 'Sin anuncios';
-        }
+        // Renderizar Tablas
+        renderTablaInteractiva('tbody-buys', rawLiveBuys, true);
+        renderTablaInteractiva('tbody-sells', rawLiveSells, false);
 
-        // Spread
-        if (data.best_buy && data.best_sell) {
-          const spread = data.best_sell.price - data.best_buy.price;
-          const spreadPct = (spread / data.best_buy.price) * 100;
-          document.getElementById('kpi-spread').innerText = spread.toFixed(2);
-          document.getElementById('kpi-spread-pct').innerText = `Margen estimado: ${spreadPct.toFixed(2)}%`;
-        }
-
-        // Render Anuncios Tablas
-        renderTablaAnuncios('table-buy-body', data.buy_ads || []);
-        renderTablaAnuncios('table-sell-body', data.sell_ads || []);
-        document.getElementById('count-buy-ads').innerText = `${(data.buy_ads || []).length} anuncios`;
-        document.getElementById('count-sell-ads').innerText = `${(data.sell_ads || []).length} anuncios`;
-
-      } catch (e) {
-        console.error('Error live:', e);
+      } catch (err) {
+        console.error('Error live:', err);
       }
     }
 
-    function renderTablaAnuncios(elementId, ads) {
-      const tbody = document.getElementById(elementId);
-      if (!ads || ads.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="py-3 text-center text-gray-500">No hay anuncios disponibles bajo este filtro.</td></tr>';
+    // RENDERIZAR LAS 3 JUGADAS GANADORAS EN SECCIÓN 1
+    function renderTop3Plays(matches, capital) {
+      const container = document.getElementById('container-top-plays');
+      if (!matches || matches.length === 0) {
+        container.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-6">No hay suficientes anuncios en este momento.</div>';
         return;
       }
-      tbody.innerHTML = ads.map(a => {
-        const methods = a.payment_methods.map(m => `<span class="badge bg-gray-800 text-gray-300 border border-gray-700 mr-1 mb-1">${m}</span>`).join('');
-        const badgeVerified = a.is_verified_merchant ? '<span class="text-yellow-400 font-bold ml-1" title="Verificado">✓</span>' : '';
+
+      const medals = ['🏆 Opción #1 (Recomendada)', '🥈 Opción #2 (Alternativa)', '🥉 Opción #3 (Alternativa)'];
+      const borderColors = ['border-amber-500/50', 'border-gray-700', 'border-gray-800'];
+      const bgColors = ['bg-gradient-to-b from-gray-900 via-gray-950 to-gray-950', 'bg-gray-950', 'bg-gray-950'];
+
+      const html = matches.slice(0, 3).map((m, idx) => {
+        const buyPrice = m.buy_price;
+        const sellPrice = m.sell_price;
+        const usdt = (capital / buyPrice).toFixed(2);
+        const fiatBack = (usdt * sellPrice).toFixed(2);
+        const netGain = (fiatBack - capital).toFixed(2);
+        const roi = (((fiatBack - capital) / capital) * 100).toFixed(2);
+        const gainPerUsdt = (sellPrice - buyPrice).toFixed(2);
+
+        const buyLink = m.buy_merchant_link || m.buy_link || 'https://p2p.binance.com';
+        const sellLink = m.sell_merchant_link || m.sell_link || 'https://p2p.binance.com';
+
+        const withinLimits = (capital >= m.buy_min_limit && capital <= m.buy_max_limit);
+        const limitBadge = withinLimits 
+          ? '<span class="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800">🟢 Capital dentro de límites</span>'
+          : `<span class="text-[10px] text-amber-300 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800">🟡 Mínimo compra: C$ ${m.buy_min_limit.toLocaleString()}</span>`;
+
         return `
-          <tr class="hover:bg-gray-800/40 transition">
-            <td class="py-2.5">
-              <span class="font-medium text-white">${a.merchant_name}${badgeVerified}</span>
-              <span class="block text-[10px] text-gray-500">${a.finish_rate_pct}% (${a.month_orders} órdenes)</span>
+          <div class="${bgColors[idx]} p-4 rounded-xl border ${borderColors[idx]} flex flex-col justify-between space-y-3 shadow-md hover:border-amber-400 transition">
+            <div>
+              <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+                <span class="text-xs font-bold text-amber-300">${medals[idx]}</span>
+                <span class="bank-badge font-bold">${m.matched_bank}</span>
+              </div>
+
+              <!-- GANANCIA -->
+              <div class="my-3 text-center bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                <span class="text-xs text-gray-400 block font-medium">Ganancia Neta Estimada</span>
+                <span class="text-2xl font-black font-mono ${netGain > 0 ? 'text-emerald-400' : 'text-gray-300'}">
+                  ${netGain > 0 ? '+' : ''}C$ ${Number(netGain).toLocaleString()}
+                </span>
+                <span class="block text-[11px] font-bold ${netGain > 0 ? 'text-emerald-400' : 'text-gray-400'}">
+                  ${netGain > 0 ? '+' : ''}${roi}% ROI (+C$ ${gainPerUsdt}/USDT)
+                </span>
+              </div>
+
+              <!-- PASOS DETALLADOS -->
+              <div class="space-y-2 text-xs">
+                <!-- Paso Compra -->
+                <div class="p-2 rounded bg-gray-900/60 border border-gray-800">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-emerald-400">1. Compras a:</span>
+                    <a href="${buyLink}" target="_blank" class="text-amber-400 hover:underline font-bold text-[11px] truncate max-w-[120px]">
+                      ${m.buy_merchant} ↗
+                    </a>
+                  </div>
+                  <div class="flex items-center justify-between mt-1 text-[11px]">
+                    <span class="text-white font-mono font-bold">C$ ${buyPrice.toFixed(2)}</span>
+                    <span class="text-blue-300 font-mono">Recibes: <b>${usdt} USDT</b></span>
+                  </div>
+                  <span class="text-[10px] text-gray-500 block mt-0.5">Límites: C$ ${m.buy_min_limit.toLocaleString()} - ${m.buy_max_limit.toLocaleString()}</span>
+                </div>
+
+                <!-- Paso Venta -->
+                <div class="p-2 rounded bg-gray-900/60 border border-gray-800">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-rose-400">2. Vendes a:</span>
+                    <a href="${sellLink}" target="_blank" class="text-amber-400 hover:underline font-bold text-[11px] truncate max-w-[120px]">
+                      ${m.sell_merchant} ↗
+                    </a>
+                  </div>
+                  <div class="flex items-center justify-between mt-1 text-[11px]">
+                    <span class="text-white font-mono font-bold">C$ ${sellPrice.toFixed(2)}</span>
+                    <span class="text-emerald-300 font-mono">Cobras: <b>C$ ${Number(fiatBack).toLocaleString()}</b></span>
+                  </div>
+                  <span class="text-[10px] text-gray-500 block mt-0.5">Límites: C$ ${m.sell_min_limit.toLocaleString()} - ${m.sell_max_limit.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ENLACES DIRECTOS Y ESTADO -->
+            <div class="pt-2 border-t border-gray-800/80 space-y-2">
+              <div class="flex justify-between items-center">
+                ${limitBadge}
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-center text-xs">
+                <a href="${buyLink}" target="_blank" class="py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-gray-950 font-bold rounded text-[11px] transition">
+                  Comprar ↗
+                </a>
+                <a href="${sellLink}" target="_blank" class="py-1.5 px-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-[11px] transition">
+                  Vender ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+      if (autoMatch && autoMatch.recommendation) {
+        document.getElementById('card-match-insight').innerText = autoMatch.recommendation;
+      }
+    }
+
+    // RENDERIZAR TABLAS INTERACTIVAS TOP 10 CON ENLACE DIRECTO A BINANCE
+    function renderTablaInteractiva(tbodyId, ads, isBuy) {
+      const tbody = document.getElementById(tbodyId);
+      if (!ads || ads.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500 font-sans">No hay anuncios disponibles.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = ads.slice(0, 10).map((a, idx) => {
+        const banks = a.payment_methods.slice(0, 2).map(b => `<span class="bank-badge mr-1">${cleanBankName(b)}</span>`).join('');
+        const priceColor = isBuy ? 'text-emerald-400' : 'text-rose-400';
+        
+        // Clases de selección
+        const isDirectSelected = (isBuy && selectedManualBuy && selectedManualBuy.adv_no === a.adv_no) ||
+                                 (!isBuy && selectedManualSell && selectedManualSell.adv_no === a.adv_no);
+        
+        const isPaired = (isBuy && !selectedManualBuy && selectedManualSell && autoMatch && autoMatch.buy_merchant === a.merchant_name) ||
+                         (!isBuy && selectedManualBuy && !selectedManualSell && autoMatch && autoMatch.sell_merchant === a.merchant_name);
+
+        let rowClass = 'clickable-row';
+        let badgeHtml = '';
+        if (isDirectSelected) {
+          rowClass += isBuy ? ' selected-buy' : ' selected-sell';
+          badgeHtml = '<span class="text-[10px] text-blue-400 font-bold ml-1">● Tu Selección</span>';
+        } else if (isPaired) {
+          rowClass += ' matched-pair-row';
+          badgeHtml = '<span class="text-[10px] text-amber-300 font-bold ml-1">★ Emparejado</span>';
+        }
+
+        const merchantLink = a.merchant_link || a.link || `https://p2p.binance.com/es/trade/${isBuy ? 'buy' : 'sell'}/USDT?fiat=NIO`;
+
+        return `
+          <tr class="${rowClass}" onclick="seleccionarFila(${idx}, ${isBuy})">
+            <td class="py-2.5 font-sans font-medium text-white">
+              <div class="flex items-center gap-1.5">
+                <span class="text-gray-400 font-mono text-xs">${idx + 1}.</span>
+                <a href="${merchantLink}" target="_blank" onclick="event.stopPropagation()" class="text-amber-400 hover:text-amber-300 hover:underline font-bold text-xs flex items-center gap-1" title="Abrir perfil de ${a.merchant_name} en Binance">
+                  <span>${a.merchant_name}</span>
+                  <svg class="w-3 h-3 text-gray-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
+                ${badgeHtml}
+              </div>
             </td>
-            <td class="py-2.5 font-bold font-mono text-white text-sm">C$${a.price.toFixed(2)}</td>
-            <td class="py-2.5 text-gray-300 font-mono text-[11px]">
-              C$${a.min_limit.toLocaleString()} - C$${a.max_limit.toLocaleString()}
-              <span class="block text-[10px] text-blue-400">Sugerido: C$${a.suggested_amount_fiat.toLocaleString()} (~${a.suggested_amount_asset} USDT)</span>
+            <td class="py-2.5 font-bold ${priceColor}">C$ ${a.price.toFixed(2)}</td>
+            <td class="py-2.5 text-gray-300 text-[11px]">C$ ${a.min_limit.toLocaleString()} - ${a.max_limit.toLocaleString()}</td>
+            <td class="py-2.5 font-sans">${banks}</td>
+            <td class="py-2.5 text-right">
+              <a href="${merchantLink}" target="_blank" onclick="event.stopPropagation()" class="bg-gray-800 hover:bg-amber-500 hover:text-gray-950 text-amber-300 font-bold text-[10px] px-2 py-1 rounded border border-gray-700 transition inline-block">
+                Ver ↗
+              </a>
             </td>
-            <td class="py-2.5">${methods}</td>
           </tr>
         `;
       }).join('');
     }
 
-    async function cargarPredicciones() {
+    // AL HACER CLIC EN CUALQUIER FILA PARA EMPAREJAR
+    function seleccionarFila(index, isBuy) {
+      if (isBuy) {
+        selectedManualBuy = rawLiveBuys[index];
+        // Si no había venta seleccionada o ya había, buscar automáticamente la mejor contraparte
+        selectedManualSell = buscarMejorContraparte(selectedManualBuy, false);
+      } else {
+        selectedManualSell = rawLiveSells[index];
+        selectedManualBuy = buscarMejorContraparte(selectedManualSell, true);
+      }
+
+      document.getElementById('badge-match-mode').innerText = 'Modo: Emparejamiento Interactivo';
+      document.getElementById('btn-reset-match').classList.remove('hidden');
+
+      recalcularMatchSeleccionado();
+      renderTablaInteractiva('tbody-buys', rawLiveBuys, true);
+      renderTablaInteractiva('tbody-sells', rawLiveSells, false);
+    }
+
+    // BUSCA LA MEJOR CONTRAPARTE CON EL MISMO BANCO (O FALLBACK AL MEJOR SPREAD)
+    function buscarMejorContraparte(ad, searchBuy) {
+      const candidates = searchBuy ? rawLiveBuys : rawLiveSells;
+      if (!candidates || candidates.length === 0) return null;
+
+      const adBanks = (ad.payment_methods || []).map(cleanBankName);
+      let bestPartner = null;
+      let maxSpread = -9999;
+
+      // 1. Prioridad: Anuncio que comparta el mismo banco
+      for (const cand of candidates) {
+        const candBanks = (cand.payment_methods || []).map(cleanBankName);
+        const common = adBanks.filter(b => candBanks.includes(b));
+        if (common.length > 0) {
+          const spread = searchBuy ? (ad.price - cand.price) : (cand.price - ad.price);
+          if (spread > maxSpread) {
+            maxSpread = spread;
+            bestPartner = cand;
+          }
+        }
+      }
+
+      // 2. Fallback: Si ningún anunciante comparte banco, tomar el mejor precio disponible
+      if (!bestPartner) {
+        bestPartner = candidates[0];
+      }
+
+      return bestPartner;
+    }
+
+    // RECALCULAR Y MOSTRAR EL EMPAREJAMIENTO SELECCIONADO EN EL PANEL INTERACTIVO
+    function recalcularMatchSeleccionado() {
+      if (!selectedManualBuy || !selectedManualSell) return;
+
+      const capital = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      const buyPrice = selectedManualBuy.price;
+      const sellPrice = selectedManualSell.price;
+
+      const usdt = (capital / buyPrice).toFixed(2);
+      const fiatBack = (usdt * sellPrice).toFixed(2);
+      const netGain = (fiatBack - capital).toFixed(2);
+      const roi = (((fiatBack - capital) / capital) * 100).toFixed(2);
+      const spread = (sellPrice - buyPrice).toFixed(2);
+
+      // Banco en común
+      const bBanks = (selectedManualBuy.payment_methods || []).map(cleanBankName);
+      const sBanks = (selectedManualSell.payment_methods || []).map(cleanBankName);
+      const common = bBanks.filter(b => sBanks.includes(b));
+      const matchedBank = common[0] || `${bBanks[0] || 'BAC'} ➔ ${sBanks[0] || 'Banpro'}`;
+
+      const buyLink = selectedManualBuy.merchant_link || selectedManualBuy.link || 'https://p2p.binance.com';
+      const sellLink = selectedManualSell.merchant_link || selectedManualSell.link || 'https://p2p.binance.com';
+
+      const panel = document.getElementById('panel-interactive-match');
+      const details = document.getElementById('interactive-match-details');
+      details.classList.remove('hidden');
+
+      details.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-center text-xs">
+          <!-- Paso Compra -->
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-emerald-900/40">
+            <span class="text-[10px] font-bold text-emerald-400 uppercase block">1. Compras Barato</span>
+            <div class="flex items-center justify-between mt-1">
+              <a href="${buyLink}" target="_blank" class="text-amber-300 font-bold hover:underline">${selectedManualBuy.merchant_name} ↗</a>
+              <span class="font-mono text-emerald-300 font-bold">C$ ${buyPrice.toFixed(2)}</span>
+            </div>
+            <span class="text-[10px] text-gray-400 block mt-1">Recibes: <b>${usdt} USDT</b></span>
+          </div>
+
+          <!-- Flecha y Banco -->
+          <div class="text-center p-2 rounded-lg bg-gray-950/60 border border-gray-800">
+            <span class="text-[10px] text-gray-400 block">Banco en Común</span>
+            <span class="bank-badge text-amber-300 font-bold mt-1">${matchedBank}</span>
+            <span class="text-[10px] text-gray-500 block mt-1">Spread: ${spread > 0 ? '+' : ''}C$ ${spread}/USDT</span>
+          </div>
+
+          <!-- Paso Venta -->
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-rose-900/40">
+            <span class="text-[10px] font-bold text-rose-400 uppercase block">2. Vendes Caro</span>
+            <div class="flex items-center justify-between mt-1">
+              <a href="${sellLink}" target="_blank" class="text-amber-300 font-bold hover:underline">${selectedManualSell.merchant_name} ↗</a>
+              <span class="font-mono text-rose-300 font-bold">C$ ${sellPrice.toFixed(2)}</span>
+            </div>
+            <span class="text-[10px] text-gray-400 block mt-1">Cobras: <b>C$ ${Number(fiatBack).toLocaleString()}</b></span>
+          </div>
+
+          <!-- Resultado y Botones -->
+          <div class="p-2.5 rounded-lg bg-gray-900 border border-gray-700 text-center flex flex-col justify-between">
+            <div>
+              <span class="text-[10px] text-gray-400 block">Tu Ganancia Neta</span>
+              <span class="text-xl font-black font-mono ${netGain > 0 ? 'text-emerald-400' : 'text-gray-300'}">
+                ${netGain > 0 ? '+' : ''}C$ ${Number(netGain).toLocaleString()}
+              </span>
+              <span class="text-[10px] font-bold ${netGain > 0 ? 'text-emerald-400' : 'text-gray-400'} block">
+                ${netGain > 0 ? '+' : ''}${roi}% ROI
+              </span>
+            </div>
+            <div class="flex gap-1.5 mt-2">
+              <a href="${buyLink}" target="_blank" class="w-1/2 py-1 bg-emerald-600 hover:bg-emerald-500 text-gray-950 font-bold rounded text-[10px] text-center">Comprar ↗</a>
+              <a href="${sellLink}" target="_blank" class="w-1/2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-[10px] text-center">Vender ↗</a>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function resetearMatchAutomatico() {
+      selectedManualBuy = null;
+      selectedManualSell = null;
+      document.getElementById('badge-match-mode').innerText = 'Top 3 Opciones Rentables';
+      document.getElementById('btn-reset-match').classList.add('hidden');
+      document.getElementById('interactive-match-details').classList.add('hidden');
+      renderTablaInteractiva('tbody-buys', rawLiveBuys, true);
+      renderTablaInteractiva('tbody-sells', rawLiveSells, false);
+    }
+
+    function setCapital(val) {
+      document.getElementById('input-user-capital').value = val;
+      if (selectedManualBuy && selectedManualSell) {
+        recalcularMatchSeleccionado();
+      }
+      renderTop3Plays(topMatchesList, val);
+    }
+
+    function cambiarCapitalManual() {
+      const val = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      if (selectedManualBuy && selectedManualSell) {
+        recalcularMatchSeleccionado();
+      }
+      renderTop3Plays(topMatchesList, val);
+    }
+
+    // GESTIÓN DE FILTRADO MANUAL DE LA LÍNEA DE TIEMPO
+    function aplicarPreset(preset) {
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
+      });
+      const activeBtn = document.getElementById(`btn-range-${preset}`);
+      if (activeBtn) {
+        activeBtn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40 font-bold';
+      }
+
+      // Sincronizar inputs manuales
+      if (preset === '1h') { document.getElementById('manual-hours-input').value = 1; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '6h') { document.getElementById('manual-hours-input').value = 6; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '24h') { document.getElementById('manual-hours-input').value = 24; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '7d') { document.getElementById('manual-hours-input').value = 7; document.getElementById('manual-hours-unit').value = 'days'; }
+      if (preset === '1m') { document.getElementById('manual-hours-input').value = 30; document.getElementById('manual-hours-unit').value = 'days'; }
+
+      document.getElementById('manual-start-dt').value = '';
+      document.getElementById('manual-end-dt').value = '';
+
+      const labels = {
+        '1h': 'Última 1 hora (Mínimo)',
+        '6h': 'Últimas 6 horas',
+        '24h': 'Últimas 24 horas',
+        '7d': 'Últimos 7 días',
+        '1m': 'Último 1 mes (Máximo)'
+      };
+
+      currentFilterQuery = `time_range=${preset}`;
+      document.getElementById('label-active-filter').innerText = `Filtro activo: ${labels[preset] || preset} (Hora de Nicaragua UTC-6)`;
+      obtenerHistorial();
+    }
+
+    function aplicarFiltroPorTiempo() {
+      const val = parseFloat(document.getElementById('manual-hours-input').value) || 24;
+      const unit = document.getElementById('manual-hours-unit').value;
+      let totalHours = unit === 'days' ? val * 24 : val;
+
+      // Restricción: Mínimo 1 hora, Máximo 1 mes (744 horas = 31 días)
+      if (totalHours < 1) {
+        totalHours = 1;
+        document.getElementById('manual-hours-input').value = 1;
+        document.getElementById('manual-hours-unit').value = 'hours';
+      } else if (totalHours > 744) {
+        totalHours = 744;
+        document.getElementById('manual-hours-input').value = 31;
+        document.getElementById('manual-hours-unit').value = 'days';
+      }
+
+      // Limpiar estilo de botones de preset
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
+      });
+      document.getElementById('manual-start-dt').value = '';
+      document.getElementById('manual-end-dt').value = '';
+
+      currentFilterQuery = `hours=${totalHours}`;
+      const desc = totalHours < 24 ? `${totalHours} horas` : `${(totalHours / 24).toFixed(1)} días`;
+      document.getElementById('label-active-filter').innerText = `Filtro manual: Últimas ${desc} (Hora de Nicaragua UTC-6)`;
+      obtenerHistorial();
+    }
+
+    function aplicarFiltroPorFechas() {
+      const st = document.getElementById('manual-start-dt').value;
+      const et = document.getElementById('manual-end-dt').value;
+
+      if (!st) {
+        alert('Por favor selecciona al menos la fecha y hora de inicio (Desde).');
+        return;
+      }
+
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
+      });
+
+      currentFilterQuery = `start_time=${encodeURIComponent(st)}${et ? '&end_time=' + encodeURIComponent(et) : ''}`;
+      const descEt = et ? ` hasta ${et.replace('T', ' ')}` : ' hasta la actualidad';
+      document.getElementById('label-active-filter').innerText = `Filtro manual por fechas: Desde ${st.replace('T', ' ')}${descEt} (Hora Nicaragua)`;
+      obtenerHistorial();
+    }
+
+    function resetFiltroManual() {
+      aplicarPreset('24h');
+    }
+
+    // GRÁFICO 1: LÍNEA DE TIEMPO CON HORA LOCAL DE NICARAGUA
+    async function obtenerHistorial() {
       try {
-        const res = await fetch(`${API_BASE}/predictions/NIO`);
+        const [rBuy, rSell] = await Promise.all([
+          fetch(`${API}/history/NIO?trade_type=BUY&${currentFilterQuery}`),
+          fetch(`${API}/history/NIO?trade_type=SELL&${currentFilterQuery}`)
+        ]);
+        const buys = await rBuy.json();
+        const sells = await rSell.json();
+
+        const countBadge = document.getElementById('label-active-points');
+        if (countBadge) {
+          countBadge.innerText = `${buys.length} puntos graficados`;
+        }
+
+        historyPoints = buys.map((b, idx) => ({
+          time: b.timestamp_local || 'N/D',
+          buy_price: b.best_price,
+          buy_merchant: b.merchant_name,
+          buy_bank: (b.payment_methods && b.payment_methods[0]) || 'BAC',
+          sell_price: (sells[idx] && sells[idx].best_price) || 0,
+          sell_merchant: (sells[idx] && sells[idx].merchant_name) || 'N/D',
+        }));
+
+        const labels = historyPoints.map(p => p.time);
+        const buyPrices = historyPoints.map(p => p.buy_price);
+        const sellPrices = historyPoints.map(p => p.sell_price);
+
+        const ctx = document.getElementById('canvas-timeline').getContext('2d');
+        if (timelineChart) timelineChart.destroy();
+
+        const pRadius = buys.length > 100 ? 2 : (buys.length > 50 ? 3 : 4);
+
+        timelineChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Compra', data: buyPrices, borderColor: '#10b981', tension: 0.3, pointRadius: pRadius, pointHoverRadius: 6 },
+              { label: 'Venta', data: sellPrices, borderColor: '#ef4444', tension: 0.3, pointRadius: pRadius, pointHoverRadius: 6 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => `Hora Nicaragua: ${items[0].label}`,
+                  label: (item) => ` ${item.dataset.label}: C$ ${item.parsed.y.toFixed(2)} NIO`
+                }
+              }
+            },
+            scales: {
+              x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+              y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+            },
+            onClick: (e, elements) => {
+              if (elements && elements.length > 0) {
+                const index = elements[0].index;
+                const point = historyPoints[index];
+                if (point) {
+                  const spread = (point.sell_price - point.buy_price).toFixed(2);
+                  document.getElementById('chart-point-details').innerHTML = `
+                    <div class="flex items-center gap-2">
+                      <span class="font-bold text-amber-400">📌 Registro de las ${point.time}:</span>
+                      <span>Compra: <b>C$ ${point.buy_price.toFixed(2)}</b> (${point.buy_merchant})</span>
+                      <span>Venta: <b>C$ ${point.sell_price.toFixed(2)}</b> (${point.sell_merchant})</span>
+                      <span class="font-mono ${spread > 0 ? 'text-emerald-400 font-bold' : 'text-gray-400'}">Spread: ${spread > 0 ? '+' : ''}C$ ${spread}</span>
+                    </div>
+                  `;
+                }
+              }
+            }
+          }
+        });
+
+      } catch (err) {
+        console.error('Error historial:', err);
+      }
+    }
+
+    // GRÁFICO 2: PREDICCIÓN DE PRECIOS EN 24 HORAS
+    async function obtenerPredicciones() {
+      try {
+        const res = await fetch(`${API}/predictions/NIO`);
         if (!res.ok) return;
         const p = await res.json();
+        const tp = p.time_patterns;
 
-        // Buy & Sell analysis
-        const buySide = p.buy_analysis || {};
-        const trendEl = document.getElementById('pred-trend');
-        trendEl.innerText = buySide.trend || 'LATERAL';
-        if (buySide.trend === 'ALCISTA') {
-          trendEl.className = 'badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-        } else if (buySide.trend === 'BAJISTA') {
-          trendEl.className = 'badge bg-rose-500/20 text-rose-400 border border-rose-500/30';
-        } else {
-          trendEl.className = 'badge bg-gray-800 text-gray-300 border border-gray-700';
-        }
+        if (tp) {
+          document.getElementById('text-best-buy-hours').innerText = tp.best_hours_to_buy.join(', ') || '09:00 AM, 02:00 PM';
+          document.getElementById('text-best-sell-hours').innerText = tp.best_hours_to_sell.join(', ') || '03:00 PM, 06:00 PM';
+          document.getElementById('text-daily-summary').innerText = tp.summary_insight || '';
 
-        document.getElementById('pred-zscore').innerText = buySide.z_score !== undefined ? buySide.z_score : '--';
-        document.getElementById('pred-proj-30').innerText = buySide.projected_next_30m ? `C$${buySide.projected_next_30m}` : '--';
-        document.getElementById('pred-proj-60').innerText = buySide.projected_next_60m ? `C$${buySide.projected_next_60m}` : '--';
-        document.getElementById('pred-recommendation').innerText = buySide.recommendation || 'Sin recomendación aún.';
+          // Renderizar Gráfico de Barras de 24 horas
+          if (tp.hourly_patterns && tp.hourly_patterns.length > 0) {
+            const hLabels = tp.hourly_patterns.map(h => h.hour_label);
+            const hBuys = tp.hourly_patterns.map(h => h.avg_buy_price || null);
+            const hSells = tp.hourly_patterns.map(h => h.avg_sell_price || null);
 
-        // Patrones Horarios
-        if (p.time_patterns) {
-          const tp = p.time_patterns;
-          const buyHoursDiv = document.getElementById('best-buy-hours');
-          const sellHoursDiv = document.getElementById('best-sell-hours');
+            const ctx2 = document.getElementById('canvas-24h-prediction').getContext('2d');
+            if (predictionChart) predictionChart.destroy();
 
-          buyHoursDiv.innerHTML = tp.best_hours_to_buy.length > 0 
-            ? tp.best_hours_to_buy.map(h => `<span class="badge bg-emerald-950 text-emerald-300 border border-emerald-800">${h}</span>`).join('')
-            : '<span class="text-gray-500">Recopilando datos...</span>';
-
-          sellHoursDiv.innerHTML = tp.best_hours_to_sell.length > 0 
-            ? tp.best_hours_to_sell.map(h => `<span class="badge bg-rose-950 text-rose-300 border border-rose-800">${h}</span>`).join('')
-            : '<span class="text-gray-500">Recopilando datos...</span>';
-
-          document.getElementById('time-insight').innerText = tp.summary_insight || '';
-
-          // Payment methods
-          const pmList = document.getElementById('payment-methods-list');
-          if (tp.popular_payment_methods && tp.popular_payment_methods.length > 0) {
-            pmList.innerHTML = tp.popular_payment_methods.map(m => `
-              <div class="flex items-center justify-between p-2 rounded bg-gray-950 border border-gray-800">
-                <span class="font-medium text-gray-300">${m.method}</span>
-                <span class="text-gray-400 font-mono text-[11px]">${m.frequency} ops (Límites: C$${m.avg_min_limit.toLocaleString()} - C$${m.avg_max_limit.toLocaleString()})</span>
-              </div>
-            `).join('');
+            predictionChart = new Chart(ctx2, {
+              type: 'bar',
+              data: {
+                labels: hLabels,
+                datasets: [
+                  { label: 'Compra Promedio', data: hBuys, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderRadius: 4 },
+                  { label: 'Venta Promedio', data: hSells, backgroundColor: 'rgba(239, 68, 68, 0.7)', borderRadius: 4 }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#1e293b' } },
+                  y: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: '#1e293b' } }
+                }
+              }
+            });
           }
         }
-      } catch (e) {
-        console.error('Error pred:', e);
+      } catch (err) {
+        console.error(err);
       }
     }
 
-    async function cargarHistorial() {
+    async function obtenerAlertas() {
       try {
-        const [resBuy, resSell] = await Promise.all([
-          fetch(`${API_BASE}/history/NIO?trade_type=BUY&limit=30`),
-          fetch(`${API_BASE}/history/NIO?trade_type=SELL&limit=30`)
-        ]);
-        const buyData = await resBuy.json();
-        const sellData = await resSell.json();
-
-        const labels = buyData.map(d => new Date(d.timestamp).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }));
-        const buyPrices = buyData.map(d => d.best_price);
-        const sellPrices = sellData.map(d => d.best_price);
-
-        renderGrafica(labels, buyPrices, sellPrices);
-      } catch (e) {
-        console.error('Error history:', e);
-      }
-    }
-
-    function renderGrafica(labels, buyPrices, sellPrices) {
-      const ctx = document.getElementById('priceChart').getContext('2d');
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
-      chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'Compra (BUY)',
-              data: buyPrices,
-              borderColor: '#10b981',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              tension: 0.3,
-              fill: true
-            },
-            {
-              label: 'Venta (SELL)',
-              data: sellPrices,
-              borderColor: '#f43f5e',
-              backgroundColor: 'rgba(244, 63, 94, 0.1)',
-              tension: 0.3,
-              fill: true
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { labels: { color: '#9ca3af', font: { size: 11 } } }
-          },
-          scales: {
-            x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1f2937' } },
-            y: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: '#1f2937' } }
-          }
-        }
-      });
-    }
-
-    async function cargarReglas() {
-      try {
-        const res = await fetch(`${API_BASE}/config/rules`);
-        if (!res.ok) return;
-        const rules = await res.json();
-        const nio = rules['NIO'] || {};
-        document.getElementById('rule-buy-target').innerText = nio.buy_target ? `C$${nio.buy_target.toFixed(2)}` : '--';
-        document.getElementById('rule-sell-target').innerText = nio.sell_target ? `C$${nio.sell_target.toFixed(2)}` : '--';
-        document.getElementById('rule-budget').innerText = nio.budget ? `C$${nio.budget.toLocaleString()}` : '--';
-
-        document.getElementById('input-buy-target').value = nio.buy_target || 36.80;
-        document.getElementById('input-sell-target').value = nio.sell_target || 40.00;
-        document.getElementById('input-budget').value = nio.budget || 2000.0;
-      } catch (e) {
-        console.error('Error rules:', e);
-      }
-    }
-
-    async function cargarAlertas() {
-      try {
-        const res = await fetch(`${API_BASE}/alerts?limit=10`);
+        const res = await fetch(`${API}/alerts?limit=10`);
         if (!res.ok) return;
         const alerts = await res.json();
-        const tbody = document.getElementById('table-alerts-body');
-        if (alerts.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">No se han disparado alertas aún (los precios actuales no han cruzado tus objetivos).</td></tr>';
+        const tbody = document.getElementById('tbody-alerts-log');
+
+        if (!alerts || alerts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="py-3 text-center text-gray-500 font-sans">No se han disparado alertas aún (mercado en rango regular).</td></tr>';
           return;
         }
 
         tbody.innerHTML = alerts.map(a => `
           <tr class="hover:bg-gray-800/40">
-            <td class="py-2.5 text-gray-400 font-mono text-[11px]">${new Date(a.timestamp).toLocaleString('es-NI')}</td>
-            <td class="py-2.5 font-bold ${a.signal_type === 'BUY_LOW' ? 'text-emerald-400' : 'text-rose-400'}">${a.signal_type}</td>
-            <td class="py-2.5 font-mono text-white font-bold">C$${a.price.toFixed(2)}</td>
-            <td class="py-2.5 text-gray-300"><span class="badge bg-gray-800 text-blue-400">${a.channels_sent}</span></td>
-            <td class="py-2.5 text-gray-400 text-[11px] max-w-xs truncate" title="${a.message}">${a.message}</td>
+            <td class="py-2 text-gray-400 font-mono text-[11px]">${new Date(a.timestamp).toLocaleString('es-NI')}</td>
+            <td class="py-2 font-bold text-white">${a.signal_type}</td>
+            <td class="py-2 font-mono text-emerald-400 font-bold">C$ ${a.price.toFixed(2)}</td>
+            <td class="py-2"><span class="bank-badge">${a.channels_sent}</span></td>
+            <td class="py-2 text-[11px] text-gray-300 max-w-sm truncate" title="${a.message}">${a.message}</td>
           </tr>
         `).join('');
-      } catch (e) {
-        console.error('Error alerts:', e);
+
+      } catch (err) {
+        console.error(err);
       }
     }
 
-    async function escanearMercado() {
-      const btn = document.getElementById('btn-scan');
-      btn.disabled = true;
-      btn.classList.add('opacity-50');
+    async function obtenerMetas() {
       try {
-        const res = await fetch(`${API_BASE}/monitor/run`, { method: 'POST' });
+        const res = await fetch(`${API}/config/rules`);
+        if (!res.ok) return;
+        const d = await res.json();
+        const nio = d['NIO'] || {};
+        document.getElementById('cfg-buy').value = nio.buy_target || 36.80;
+        document.getElementById('cfg-sell').value = nio.sell_target || 37.50;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // AUTO-CALCULAR METAS INTELIGENTES BASADAS EN EL HISTORIAL REAL
+    async function autoCalcularMetasInteligentes() {
+      const btn = document.getElementById('btn-smart-calc');
+      const txt = document.getElementById('txt-smart-insight');
+      btn.disabled = true;
+      btn.innerText = 'Calculando...';
+
+      try {
+        const res = await fetch(`${API}/config/smart-targets/NIO`);
+        if (!res.ok) throw new Error('Error al consultar metas inteligentes');
         const data = await res.json();
-        await cargarTodo();
-        const summaryNio = data.summary?.NIO;
-        if (summaryNio && summaryNio.alerts_triggered && summaryNio.alerts_triggered.length > 0) {
-          document.getElementById('alert-banner').classList.remove('hidden');
-          document.getElementById('alert-banner-text').innerText = `¡Se dispararon ${summaryNio.alerts_triggered.length} alerta(s) de oportunidad!`;
-        }
-      } catch (e) {
-        console.error('Error scan:', e);
+
+        document.getElementById('cfg-buy').value = data.suggested_buy_target.toFixed(2);
+        document.getElementById('cfg-sell').value = data.suggested_sell_target.toFixed(2);
+        txt.innerHTML = `<span class="text-emerald-400 font-bold">✓ Calibrado con ${data.samples_used} registros:</span> ${data.insight}`;
+      } catch (err) {
+        console.error(err);
+        txt.innerText = 'Error al conectar con el motor estadístico.';
       } finally {
         btn.disabled = false;
-        btn.classList.remove('opacity-50');
+        btn.innerText = 'Auto-Calcular Ahora';
       }
     }
 
     async function guardarReglas(e) {
       e.preventDefault();
-      const buy_target = parseFloat(document.getElementById('input-buy-target').value);
-      const sell_target = parseFloat(document.getElementById('input-sell-target').value);
-      const budget = parseFloat(document.getElementById('input-budget').value);
+      const b = parseFloat(document.getElementById('cfg-buy').value);
+      const s = parseFloat(document.getElementById('cfg-sell').value);
 
-      if (buy_target >= sell_target) {
-        alert('El precio de compra barata debe ser MENOR que el precio de venta cara.');
+      if (b >= s) {
+        alert('El precio de compra barata debe ser MENOR que el precio de venta.');
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE}/config/rules/NIO`, {
+        const res = await fetch(`${API}/config/rules/NIO`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             asset: 'USDT',
-            buy_target: buy_target,
-            sell_target: sell_target,
-            budget: budget,
+            buy_target: b,
+            sell_target: s,
+            budget: 5000.0,
             pay_types: [],
-            enabled: true
+            enabled: true,
+            auto_smart_mode: true
           })
         });
         if (res.ok) {
           cerrarConfigModal();
-          await cargarReglas();
-        } else {
-          alert('Error al guardar las reglas.');
+          alert('¡Metas inteligentes actualizadas con éxito!');
         }
       } catch (err) {
         alert('Error al conectar con el servidor.');
       }
     }
 
-    function abrirConfigModal() { document.getElementById('modal-config').classList.remove('hidden'); }
-    function cerrarConfigModal() { document.getElementById('modal-config').classList.add('hidden'); }
-
-    function cambiarIntervalo() {
-      const ms = parseInt(document.getElementById('auto-refresh').value);
-      if (timerId) clearInterval(timerId);
-      if (ms > 0) {
-        timerId = setInterval(cargarTodo, ms);
+    async function escanearMercado() {
+      const btn = document.getElementById('btn-scan');
+      const icon = document.getElementById('scan-icon');
+      btn.disabled = true;
+      icon.classList.add('animate-spin');
+      try {
+        await fetch(`${API}/monitor/run`, { method: 'POST' });
+        await cargarTodo();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+        icon.classList.remove('animate-spin');
       }
     }
 
-    // Inicializar al cargar la página
+    async function obtenerConfiguracionInforme() {
+      try {
+        const res = await fetch(`${API}/config/report-settings`);
+        if (!res.ok) return;
+        const d = await res.json();
+        const sel = document.getElementById('select-report-interval');
+        if (!d.enabled) {
+          sel.value = '0';
+        } else {
+          sel.value = String(d.interval_minutes || 60);
+        }
+        if (d.email_to) {
+          document.getElementById('label-email-dest').innerText = d.email_to;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function cambiarFrecuenciaInforme(val) {
+      const minutes = parseInt(val);
+      const enabled = minutes > 0;
+      try {
+        const res = await fetch(`${API}/config/report-settings?interval_minutes=${enabled ? minutes : 60}&enabled=${enabled}`, {
+          method: 'PUT'
+        });
+        if (res.ok) {
+          mostrarAvisoReporte(enabled ? `Frecuencia configurada: Cada ${minutes} minutos.` : 'Informes periódicos desactivados.');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function enviarInformeAhora() {
+      const btn = document.getElementById('btn-send-report');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Enviando a tu correo...';
+
+      const capital = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      try {
+        const res = await fetch(`${API}/reports/send-now?budget=${capital}`, { method: 'POST' });
+        if (!res.ok) throw new Error('Error al enviar informe');
+        const data = await res.json();
+        const channels = (data.channels || []).join(' y ');
+        mostrarAvisoReporte(`✓ ¡Informe enviado exitosamente a tu correo (${channels || 'enviado'})!`);
+        await obtenerAlertas();
+      } catch (e) {
+        console.error(e);
+        mostrarAvisoReporte('Error al conectar con el servidor de correo.', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    function mostrarAvisoReporte(msg, isError = false) {
+      const el = document.getElementById('msg-report-status');
+      el.innerText = msg;
+      el.className = isError 
+        ? 'text-xs font-bold text-rose-400 bg-rose-950/60 p-2 rounded border border-rose-800 text-center block'
+        : 'text-xs font-bold text-emerald-400 bg-emerald-950/60 p-2 rounded border border-emerald-800 text-center block';
+      setTimeout(() => el.classList.add('hidden'), 6000);
+      el.classList.remove('hidden');
+    }
+
+    function abrirConfigModal() { document.getElementById('modal-rules').classList.remove('hidden'); }
+    function cerrarConfigModal() { document.getElementById('modal-rules').classList.add('hidden'); }
+
     window.onload = () => {
       cargarTodo();
-      cambiarIntervalo();
+      setInterval(cargarTodo, 20000); // Refresco cada 20 segundos
     };
   </script>
 </body>
 </html>
-

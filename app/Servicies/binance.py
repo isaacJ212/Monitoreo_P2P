@@ -15,9 +15,8 @@ HEADERS = {
 
 
 def _calculate_suggested_amount(min_limit: float, max_limit: float, budget: float) -> float:
-
     if budget < min_limit:
-        return round(min_limit, 2)  
+        return round(min_limit, 2)
     return round(min(budget, max_limit), 2)
 
 
@@ -27,18 +26,20 @@ async def fetch_p2p_ads(
     asset: str = "USDT",
     budget: float = 5000.0,
     pay_types: list[str] | None = None,
-    rows: int = 15,
+    rows: int = 20,
     only_merchants: bool | None = None,
 ) -> list[AdDetail]:
-
     use_merchants = settings.ONLY_VERIFIED_MERCHANTS if only_merchants is None else only_merchants
+    clean_fiat = fiat.upper()
+    clean_asset = asset.upper()
+    clean_trade = trade_type.upper()
 
     payload = {
-        "fiat": fiat.upper(),
+        "fiat": clean_fiat,
         "page": 1,
         "rows": rows,
-        "tradeType": trade_type.upper(),
-        "asset": asset.upper(),
+        "tradeType": clean_trade,
+        "asset": clean_asset,
         "countries": [],
         "proMerchantAds": False,
         "shieldMerchantAds": False,
@@ -80,10 +81,17 @@ async def fetch_p2p_ads(
 
         suggested_fiat = _calculate_suggested_amount(min_limit, max_limit, budget)
         suggested_asset = round(suggested_fiat / price, 2)
+        adv_no = str(adv.get("advNo", ""))
+        user_no = str(advertiser.get("userNo", ""))
+        merchant_link = (
+            f"https://p2p.binance.com/es/advertiserDetail?userNo={user_no}"
+            if user_no
+            else f"https://p2p.binance.com/es/trade/{clean_trade.lower()}/{clean_asset}?fiat={clean_fiat}"
+        )
 
         filtered_ads.append(
             AdDetail(
-                adv_no=str(adv.get("advNo", "")),
+                adv_no=adv_no,
                 price=price,
                 min_limit=min_limit,
                 max_limit=max_limit,
@@ -92,10 +100,21 @@ async def fetch_p2p_ads(
                 available_asset=available,
                 payment_methods=methods,
                 merchant_name=advertiser.get("nickName", "Anónimo"),
+                merchant_user_no=user_no,
+                merchant_link=merchant_link,
                 month_orders=month_orders,
                 finish_rate_pct=round(finish_rate * 100, 2),
                 is_verified_merchant=(advertiser.get("userType") == "merchant"),
+                link=merchant_link,
             )
         )
+
+    # Ordenamiento estricto en tiempo real:
+    # Para COMPRA (BUY): El usuario busca el precio más barato (ascendente)
+    # Para VENTA (SELL): El usuario busca el precio más alto (descendente)
+    if clean_trade == "BUY":
+        filtered_ads.sort(key=lambda a: a.price)
+    else:
+        filtered_ads.sort(key=lambda a: a.price, reverse=True)
 
     return filtered_ads
