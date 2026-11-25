@@ -267,20 +267,32 @@ def _send_email_sync(subject: str, body_text: str, body_html: str | None = None)
     return True
 
 
+def get_whatsapp_recipients() -> list[str]:
+    """Obtiene y normaliza los números destinatarios (Número B que recibe las alertas)."""
+    raw = settings.WHATSAPP_RECIPIENT_NUMBER or settings.WAHA_CHAT_ID or ""
+    recipients = []
+    # Permite separar múltiples números por coma o punto y coma
+    parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    for p in parts:
+        cleaned = p.replace("+", "").replace(" ", "").replace("-", "")
+        if not cleaned:
+            continue
+        if not (cleaned.endswith("@c.us") or cleaned.endswith("@g.us")):
+            cleaned = f"{cleaned}@c.us"
+        recipients.append(cleaned)
+    return recipients
+
+
 async def _send_waha_message(text: str) -> bool:
-    """Envío de mensaje WhatsApp a través de WAHA (WhatsApp HTTP API)."""
-    if not (settings.WAHA_API_URL and settings.WAHA_CHAT_ID):
+    """
+    Envío de mensaje WhatsApp desde Número A (Sesión WAHA) hacia Número B (Destinatario).
+    Soporta uno o varios números destinatarios por separado.
+    """
+    recipients = get_whatsapp_recipients()
+    if not (settings.WAHA_API_URL and recipients):
         return False
 
-    chat_id = settings.WAHA_CHAT_ID.strip().replace("+", "").replace(" ", "")
-    if not chat_id.endswith("@c.us") and not chat_id.endswith("@g.us"):
-        chat_id = f"{chat_id}@c.us"
-
-    payload = {
-        "session": settings.WAHA_SESSION or "default",
-        "chatId": chat_id,
-        "text": text,
-    }
+    session_name = settings.WAHA_SESSION or "Binance"
     headers = {"Content-Type": "application/json"}
     if settings.WAHA_API_KEY:
         headers["X-Api-Key"] = settings.WAHA_API_KEY
@@ -298,18 +310,29 @@ async def _send_waha_message(text: str) -> bool:
             extra_urls.append(u.replace("localhost", "waha"))
     target_urls.extend(extra_urls)
 
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        last_exc = None
-        for u in target_urls:
-            try:
-                res = await client.post(u, json=payload, headers=headers)
-                res.raise_for_status()
-                return True
-            except Exception as e:
-                last_exc = e
-        if last_exc:
-            raise last_exc
-    return False
+    any_sent = False
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for recipient in recipients:
+            payload = {
+                "session": session_name,
+                "chatId": recipient,
+                "text": text,
+            }
+            sent_this = False
+            last_exc = None
+            for u in target_urls:
+                try:
+                    res = await client.post(u, json=payload, headers=headers)
+                    res.raise_for_status()
+                    sent_this = True
+                    any_sent = True
+                    break
+                except Exception as e:
+                    last_exc = e
+            if not sent_this and last_exc:
+                print(f"⚠️ [WAHA] Error enviando mensaje a {recipient}: {last_exc}")
+
+    return any_sent
 
 
 async def _send_twilio_message(from_number: str, to_number: str, body: str) -> bool:

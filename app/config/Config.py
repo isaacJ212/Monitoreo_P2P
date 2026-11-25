@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     ALERT_EMAIL_TO: str = ""
 
     # Configuración de WAHA (WhatsApp HTTP API)
-    WAHA_API_URL: str = "http://localhost:3008/api/sendText"
-    WAHA_SESSION: str = "default"
+    WAHA_API_URL: str = "http://localhost:3000/api/sendText"
+    WAHA_SESSION: str = "Binance"  # NÚMERO A: Sesión del bot/emisor que escaneó el QR en WAHA
     WAHA_API_KEY: str = ""
-    WAHA_CHAT_ID: str = ""  # Ej: 50588888888@c.us o número telefónico
+    WHATSAPP_RECIPIENT_NUMBER: str = ""  # NÚMERO B: Teléfono receptor (ej: 50588888888 o varios separados por coma)
+    WAHA_CHAT_ID: str = ""  # Retrocompatibilidad para número receptor
 
     # Configuración de Twilio (opcional como fallback)
     TWILIO_ACCOUNT_SID: str = ""
