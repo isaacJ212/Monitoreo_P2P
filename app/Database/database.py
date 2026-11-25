@@ -10,8 +10,13 @@ class Base(DeclarativeBase):
 
 
 def get_db_url(raw_url: str) -> str:
-
+    """Normaliza y limpia la URL de base de datos para compatibilidad con SQLAlchemy 2.0 y Supabase."""
     url = raw_url.strip()
+    # Corregir si accidentalmente se coló un caracter antes de postgres (ej: 'ypostgresql://')
+    if "postgres" in url and not (url.startswith("postgres://") or url.startswith("postgresql://")):
+        idx = url.find("postgres")
+        if idx > 0 and url[idx-1] not in "+:":
+            url = url[idx:]
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+psycopg2://", 1)
     if url.startswith("postgresql://") and not url.startswith("postgresql+"):
