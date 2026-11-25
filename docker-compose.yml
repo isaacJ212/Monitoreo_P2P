@@ -32,9 +32,12 @@ services:
     environment:
       - WAHA_LOG_LEVEL=INFO
       - WHATSAPP_DEFAULT_ENGINE=WEBJS
-      - WAHA_API_KEY=${WAHA_API_KEY:-}
+      # La API key debe coincidir exactamente con WAHA_API_KEY del .env
+      - WAHA_API_KEY=${WAHA_API_KEY}
     volumes:
       - waha_data:/app/.sessions
+      - waha_sessions:/app/.sessions
 
 volumes:
   waha_data:
+  waha_sessions:
