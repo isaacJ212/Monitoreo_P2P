@@ -40,6 +40,31 @@ class PredictionSide(BaseModel):
     recommendation: str
 
 
+class HourlyPattern(BaseModel):
+    hour_local: int  # Hora local de Nicaragua (0 - 23)
+    hour_label: str  # Ej: "09:00 AM"
+    avg_buy_price: float | None = None
+    avg_sell_price: float | None = None
+    sample_count: int = 0
+
+
+class PaymentMethodStat(BaseModel):
+    method: str
+    frequency: int
+    avg_min_limit: float
+    avg_max_limit: float
+
+
+class TimePatternAnalysis(BaseModel):
+    best_hours_to_buy: list[str] = []   # Ej: ["08:00 AM", "09:00 AM"]
+    best_hours_to_sell: list[str] = []  # Ej: ["06:00 PM", "07:00 PM"]
+    hourly_patterns: list[HourlyPattern] = []
+    popular_payment_methods: list[PaymentMethodStat] = []
+    overall_avg_min_limit: float = 0.0
+    overall_avg_max_limit: float = 0.0
+    summary_insight: str = ""
+
+
 class PredictionResponse(BaseModel):
     fiat: str
     asset: str
@@ -47,6 +72,7 @@ class PredictionResponse(BaseModel):
     sell_analysis: PredictionSide
     historical_min_buy: float | None = None
     historical_max_sell: float | None = None
+    time_patterns: TimePatternAnalysis | None = None
 
 
 class FiatRuleUpdate(BaseModel):

@@ -1,0 +1,21 @@
+services:
+  p2p-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: p2p_usdt_monitor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Montaje para persistir la base de datos SQLite fuera del contenedor
+      - ./p2p_monitor.db:/app/p2p_monitor.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
