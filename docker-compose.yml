@@ -10,7 +10,8 @@ services:
     env_file:
       - .env
     volumes:
-      # Base de datos persistente SQLite
+      # Si usas SQLite local, monta el archivo para persistencia.
+      # Si usas Supabase (PostgreSQL en la nube), puedes omitir o comentar esta línea:
       - ./p2p_monitor.db:/app/p2p_monitor.db
     depends_on:
       - waha
