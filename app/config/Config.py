@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./p2p_monitor.db"
+    SUPABASE_DATABASE_URL: str = ""  # Si se configura y conecta exitosamente, desactiva SQLite
     POLL_INTERVAL_MINUTES: int = 3
     ALERT_COOLDOWN_MINUTES: int = 20
     REPORT_INTERVAL_MINUTES: int = 60  # Intervalo de informes periódicos (15 o 60 minutos)
