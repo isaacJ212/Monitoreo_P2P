@@ -238,27 +238,87 @@
         <h2 class="text-sm font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
           <span>3️⃣</span> Línea de Tiempo de Precios (Hora de Nicaragua)
         </h2>
-
-        <!-- Selector de rango histórico: Mínimo 1H, Máximo 1M -->
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-400 font-sans hidden sm:inline">Rango histórico:</span>
-          <div class="inline-flex rounded-lg bg-gray-950 p-1 border border-gray-800 text-xs font-mono">
-            <button type="button" onclick="setTimelineRange('1h')" id="btn-range-1h" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">1H</button>
-            <button type="button" onclick="setTimelineRange('6h')" id="btn-range-6h" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">6H</button>
-            <button type="button" onclick="setTimelineRange('24h')" id="btn-range-24h" class="timeline-range-btn px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40">24H</button>
-            <button type="button" onclick="setTimelineRange('7d')" id="btn-range-7d" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">7D</button>
-            <button type="button" onclick="setTimelineRange('1m')" id="btn-range-1m" class="timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition">1M</button>
-          </div>
-        </div>
+        <span class="text-xs text-gray-400 font-sans">💡 Filtra los datos tú mismo: por número de horas o seleccionando el rango de fechas</span>
       </div>
 
-      <div class="box-clean p-5 space-y-3">
+      <div class="box-clean p-5 space-y-4">
+        
+        <!-- PANEL DE FILTRADO MANUAL -->
+        <div class="bg-gray-950/90 p-4 rounded-xl border border-gray-800 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-900">
+            <span class="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+              <span>⚙️</span> Panel de Filtrado Manual (Mínimo: 1 hora | Máximo: 1 mes):
+            </span>
+
+            <!-- Botones de atajo rápido -->
+            <div class="flex items-center gap-1 text-xs font-mono">
+              <span class="text-gray-400 text-[11px] mr-1 hidden sm:inline">Atajos:</span>
+              <button type="button" onclick="aplicarPreset('1h')" id="btn-range-1h" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold" title="Última 1 hora (Mínimo)">1H (Mín)</button>
+              <button type="button" onclick="aplicarPreset('6h')" id="btn-range-6h" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold">6H</button>
+              <button type="button" onclick="aplicarPreset('24h')" id="btn-range-24h" class="timeline-range-btn px-2.5 py-1 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40 font-bold">24H</button>
+              <button type="button" onclick="aplicarPreset('7d')" id="btn-range-7d" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold">7D</button>
+              <button type="button" onclick="aplicarPreset('1m')" id="btn-range-1m" class="timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold" title="Último 1 mes (Máximo)">1M (Máx)</button>
+            </div>
+          </div>
+
+          <!-- Controles de selección manual -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            
+            <!-- Modo A: Filtro manual por cantidad de horas o días -->
+            <div class="md:col-span-4 bg-gray-900/60 p-2.5 rounded-lg border border-gray-800/80">
+              <label class="block text-[11px] font-bold text-sky-300 mb-1">
+                ⏱️ Opción 1: Últimas X Horas/Días:
+              </label>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="manual-hours-input" min="1" max="744" value="24" class="w-full bg-gray-950 border border-gray-700 rounded px-2.5 py-1.5 text-white font-mono text-xs focus:border-sky-500 focus:outline-none">
+                <select id="manual-hours-unit" class="bg-gray-950 border border-gray-700 rounded px-2 py-1.5 text-white text-xs focus:border-sky-500 focus:outline-none font-bold">
+                  <option value="hours" selected>Horas</option>
+                  <option value="days">Días</option>
+                </select>
+                <button type="button" onclick="aplicarFiltroPorTiempo()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold text-xs transition whitespace-nowrap shadow">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+
+            <!-- Modo B: Filtro manual por rango de fechas (Desde / Hasta) -->
+            <div class="md:col-span-8 bg-gray-900/60 p-2.5 rounded-lg border border-gray-800/80">
+              <label class="block text-[11px] font-bold text-emerald-300 mb-1">
+                📅 Opción 2: Rango manual de Fechas (Hora Nicaragua):
+              </label>
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                <div class="sm:col-span-5">
+                  <input type="datetime-local" id="manual-start-dt" class="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none" title="Fecha y Hora de Inicio">
+                </div>
+                <div class="sm:col-span-5">
+                  <input type="datetime-local" id="manual-end-dt" class="w-full bg-gray-950 border border-gray-700 rounded px-2 py-1 text-white font-mono text-xs focus:border-emerald-500 focus:outline-none" title="Fecha y Hora de Fin">
+                </div>
+                <div class="sm:col-span-2 flex gap-1">
+                  <button type="button" onclick="aplicarFiltroPorFechas()" class="w-full py-1 px-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-xs transition shadow" title="Filtrar por estas fechas">
+                    Filtrar
+                  </button>
+                  <button type="button" onclick="resetFiltroManual()" class="py-1 px-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold text-xs transition" title="Restablecer a 24 horas">
+                    ↺
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Estado del filtro activo -->
+          <div class="flex flex-wrap items-center justify-between text-[11px] font-mono text-gray-400 pt-1 border-t border-gray-900">
+            <span id="label-active-filter">Filtro activo: Últimas 24 horas (Hora de Nicaragua UTC-6)</span>
+            <span id="label-active-points" class="text-sky-400 font-bold">Cargando puntos...</span>
+          </div>
+        </div>
+
         <!-- Tarjeta emergente con datos del punto cliqueado -->
         <div id="chart-point-details" class="p-3 bg-gray-950 rounded-lg border border-gray-800 text-xs flex flex-wrap items-center justify-between gap-2">
           <span class="text-gray-400">Toca un punto en la línea para ver qué comerciante y precio había en ese momento exacto.</span>
         </div>
 
-        <div class="h-60 w-full">
+        <div class="h-64 w-full">
           <canvas id="canvas-timeline"></canvas>
         </div>
       </div>
@@ -459,7 +519,7 @@
   <script>
     let timelineChart = null;
     let predictionChart = null;
-    let currentTimelineRange = '24h';
+    let currentFilterQuery = 'time_range=24h';
     let rawLiveBuys = [];
     let rawLiveSells = [];
     let historyPoints = [];
@@ -841,28 +901,105 @@
       renderTop3Plays(topMatchesList, val);
     }
 
-    // SELECCIÓN DE RANGO TEMPORAL PARA EL GRÁFICO (MÍNIMO 1H, MÁXIMO 1M)
-    function setTimelineRange(range) {
-      currentTimelineRange = range;
+    // GESTIÓN DE FILTRADO MANUAL DE LA LÍNEA DE TIEMPO
+    function aplicarPreset(preset) {
       document.querySelectorAll('.timeline-range-btn').forEach(btn => {
-        btn.className = 'timeline-range-btn px-2.5 py-1 rounded font-bold text-gray-400 hover:text-white transition';
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
       });
-      const activeBtn = document.getElementById(`btn-range-${range}`);
+      const activeBtn = document.getElementById(`btn-range-${preset}`);
       if (activeBtn) {
-        activeBtn.className = 'timeline-range-btn px-2.5 py-1 rounded font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40';
+        activeBtn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40 font-bold';
       }
+
+      // Sincronizar inputs manuales
+      if (preset === '1h') { document.getElementById('manual-hours-input').value = 1; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '6h') { document.getElementById('manual-hours-input').value = 6; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '24h') { document.getElementById('manual-hours-input').value = 24; document.getElementById('manual-hours-unit').value = 'hours'; }
+      if (preset === '7d') { document.getElementById('manual-hours-input').value = 7; document.getElementById('manual-hours-unit').value = 'days'; }
+      if (preset === '1m') { document.getElementById('manual-hours-input').value = 30; document.getElementById('manual-hours-unit').value = 'days'; }
+
+      document.getElementById('manual-start-dt').value = '';
+      document.getElementById('manual-end-dt').value = '';
+
+      const labels = {
+        '1h': 'Última 1 hora (Mínimo)',
+        '6h': 'Últimas 6 horas',
+        '24h': 'Últimas 24 horas',
+        '7d': 'Últimos 7 días',
+        '1m': 'Último 1 mes (Máximo)'
+      };
+
+      currentFilterQuery = `time_range=${preset}`;
+      document.getElementById('label-active-filter').innerText = `Filtro activo: ${labels[preset] || preset} (Hora de Nicaragua UTC-6)`;
       obtenerHistorial();
+    }
+
+    function aplicarFiltroPorTiempo() {
+      const val = parseFloat(document.getElementById('manual-hours-input').value) || 24;
+      const unit = document.getElementById('manual-hours-unit').value;
+      let totalHours = unit === 'days' ? val * 24 : val;
+
+      // Restricción: Mínimo 1 hora, Máximo 1 mes (744 horas = 31 días)
+      if (totalHours < 1) {
+        totalHours = 1;
+        document.getElementById('manual-hours-input').value = 1;
+        document.getElementById('manual-hours-unit').value = 'hours';
+      } else if (totalHours > 744) {
+        totalHours = 744;
+        document.getElementById('manual-hours-input').value = 31;
+        document.getElementById('manual-hours-unit').value = 'days';
+      }
+
+      // Limpiar estilo de botones de preset
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
+      });
+      document.getElementById('manual-start-dt').value = '';
+      document.getElementById('manual-end-dt').value = '';
+
+      currentFilterQuery = `hours=${totalHours}`;
+      const desc = totalHours < 24 ? `${totalHours} horas` : `${(totalHours / 24).toFixed(1)} días`;
+      document.getElementById('label-active-filter').innerText = `Filtro manual: Últimas ${desc} (Hora de Nicaragua UTC-6)`;
+      obtenerHistorial();
+    }
+
+    function aplicarFiltroPorFechas() {
+      const st = document.getElementById('manual-start-dt').value;
+      const et = document.getElementById('manual-end-dt').value;
+
+      if (!st) {
+        alert('Por favor selecciona al menos la fecha y hora de inicio (Desde).');
+        return;
+      }
+
+      document.querySelectorAll('.timeline-range-btn').forEach(btn => {
+        btn.className = 'timeline-range-btn px-2.5 py-1 rounded bg-gray-900 border border-gray-700 text-gray-300 hover:text-white transition font-bold';
+      });
+
+      currentFilterQuery = `start_time=${encodeURIComponent(st)}${et ? '&end_time=' + encodeURIComponent(et) : ''}`;
+      const descEt = et ? ` hasta ${et.replace('T', ' ')}` : ' hasta la actualidad';
+      document.getElementById('label-active-filter').innerText = `Filtro manual por fechas: Desde ${st.replace('T', ' ')}${descEt} (Hora Nicaragua)`;
+      obtenerHistorial();
+    }
+
+    function resetFiltroManual() {
+      aplicarPreset('24h');
     }
 
     // GRÁFICO 1: LÍNEA DE TIEMPO CON HORA LOCAL DE NICARAGUA
     async function obtenerHistorial() {
       try {
         const [rBuy, rSell] = await Promise.all([
-          fetch(`${API}/history/NIO?trade_type=BUY&time_range=${currentTimelineRange}`),
-          fetch(`${API}/history/NIO?trade_type=SELL&time_range=${currentTimelineRange}`)
+          fetch(`${API}/history/NIO?trade_type=BUY&${currentFilterQuery}`),
+          fetch(`${API}/history/NIO?trade_type=SELL&${currentFilterQuery}`)
         ]);
         const buys = await rBuy.json();
         const sells = await rSell.json();
+
+        const countBadge = document.getElementById('label-active-points');
+        if (countBadge) {
+          countBadge.innerText = `${buys.length} puntos graficados`;
+        }
 
         historyPoints = buys.map((b, idx) => ({
           time: b.timestamp_local || 'N/D',
@@ -880,7 +1017,7 @@
         const ctx = document.getElementById('canvas-timeline').getContext('2d');
         if (timelineChart) timelineChart.destroy();
 
-        const pRadius = currentTimelineRange === '1h' ? 4 : (currentTimelineRange === '1m' ? 1 : 2.5);
+        const pRadius = buys.length > 100 ? 2 : (buys.length > 50 ? 3 : 4);
 
         timelineChart = new Chart(ctx, {
           type: 'line',

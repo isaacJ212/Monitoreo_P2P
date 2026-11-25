@@ -98,35 +98,86 @@ def get_predictions(fiat: str, asset: str = "USDT", db: Session = Depends(get_db
 def get_price_history(
     fiat: str,
     trade_type: str = Query("BUY", pattern="^(BUY|SELL)$"),
-    time_range: str = Query("24h", pattern="^(1h|6h|12h|24h|7d|30d|1m)$"),
+    time_range: str | None = Query(None, pattern="^(1h|6h|12h|24h|7d|30d|1m)$"),
+    hours: float | None = Query(None),
+    start_time: str | None = Query(None),
+    end_time: str | None = Query(None),
     limit: int = Query(500, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
-    range_map = {
-        "1h": timedelta(hours=1),
-        "6h": timedelta(hours=6),
-        "12h": timedelta(hours=12),
-        "24h": timedelta(hours=24),
-        "7d": timedelta(days=7),
-        "30d": timedelta(days=30),
-        "1m": timedelta(days=30),
-    }
-    delta = range_map.get(time_range.lower(), timedelta(hours=24))
-
+    tz_ni = timezone(timedelta(hours=-6))  # Zona horaria de Nicaragua (UTC-6)
     now_utc = datetime.now(timezone.utc)
-    cutoff_time = now_utc - delta
-    cutoff_naive = cutoff_time.replace(tzinfo=None)
+    is_long_range = False
 
-    rows = (
-        db.query(MarketSnapshot)
-        .filter(
-            MarketSnapshot.fiat == fiat.upper(),
-            MarketSnapshot.trade_type == trade_type,
-            MarketSnapshot.timestamp >= cutoff_naive
+    # 1. Filtro Manual por Fecha y Hora exacta (Desde / Hasta)
+    if start_time:
+        try:
+            st_clean = start_time.strip().replace(" ", "T")
+            start_dt = datetime.fromisoformat(st_clean)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=tz_ni)
+            start_utc = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+            if end_time:
+                et_clean = end_time.strip().replace(" ", "T")
+                end_dt = datetime.fromisoformat(et_clean)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=tz_ni)
+                end_utc = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                end_utc = now_utc.replace(tzinfo=None)
+
+            # Validar límites: mínimo 1 hora, máximo 31 días (1 mes)
+            diff = end_utc - start_utc
+            if diff < timedelta(hours=1):
+                start_utc = end_utc - timedelta(hours=1)
+            elif diff > timedelta(days=31):
+                start_utc = end_utc - timedelta(days=31)
+
+            query = (
+                db.query(MarketSnapshot)
+                .filter(
+                    MarketSnapshot.fiat == fiat.upper(),
+                    MarketSnapshot.trade_type == trade_type,
+                    MarketSnapshot.timestamp >= start_utc,
+                    MarketSnapshot.timestamp <= end_utc
+                )
+                .order_by(MarketSnapshot.timestamp.asc())
+            )
+            rows = query.all()
+            is_long_range = (end_utc - start_utc) > timedelta(hours=24)
+        except Exception:
+            rows = []
+    else:
+        # 2. Filtro Manual por Cantidad de Horas o Días (mínimo 1 hora, máximo 31 días = 744 horas)
+        if hours is not None:
+            clamped_hours = max(1.0, min(744.0, float(hours)))
+            delta = timedelta(hours=clamped_hours)
+        else:
+            range_map = {
+                "1h": timedelta(hours=1),
+                "6h": timedelta(hours=6),
+                "12h": timedelta(hours=12),
+                "24h": timedelta(hours=24),
+                "7d": timedelta(days=7),
+                "30d": timedelta(days=30),
+                "1m": timedelta(days=30),
+            }
+            preset = (time_range or "24h").lower()
+            delta = range_map.get(preset, timedelta(hours=24))
+
+        cutoff_utc = (now_utc - delta).replace(tzinfo=None)
+        rows = (
+            db.query(MarketSnapshot)
+            .filter(
+                MarketSnapshot.fiat == fiat.upper(),
+                MarketSnapshot.trade_type == trade_type,
+                MarketSnapshot.timestamp >= cutoff_utc
+            )
+            .order_by(MarketSnapshot.timestamp.asc())
+            .all()
         )
-        .order_by(MarketSnapshot.timestamp.asc())
-        .all()
-    )
+        is_long_range = delta > timedelta(hours=24)
 
     # Si hay pocos o ningún registro en ese rango específico, asegurar devolver los más recientes disponibles
     if not rows:
@@ -138,6 +189,7 @@ def get_price_history(
             .all()
         )
         rows.reverse()
+        is_long_range = False
 
     # Muestreo inteligente (downsampling) para rangos largos (ej: 7D o 1M con miles de puntos)
     # asegurando que el gráfico en el frontend sea ultra fluido sin perder tendencias
@@ -148,9 +200,6 @@ def get_price_history(
         if rows[-1] not in sampled:
             sampled.append(rows[-1])
         rows = sampled
-
-    tz_ni = timezone(timedelta(hours=-6))  # Zona horaria de Nicaragua (UTC-6)
-    is_long_range = time_range.lower() in ("7d", "30d", "1m")
 
     result = []
     for r in rows:
