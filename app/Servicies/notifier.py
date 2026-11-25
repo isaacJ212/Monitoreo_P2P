@@ -285,10 +285,22 @@ async def _send_waha_message(text: str) -> bool:
     if settings.WAHA_API_KEY:
         headers["X-Api-Key"] = settings.WAHA_API_KEY
 
+    target_urls = [settings.WAHA_API_URL]
+    if "localhost" in settings.WAHA_API_URL:
+        target_urls.append(settings.WAHA_API_URL.replace("localhost", "waha"))
+
     async with httpx.AsyncClient(timeout=12.0) as client:
-        res = await client.post(settings.WAHA_API_URL, json=payload, headers=headers)
-        res.raise_for_status()
-    return True
+        last_exc = None
+        for u in target_urls:
+            try:
+                res = await client.post(u, json=payload, headers=headers)
+                res.raise_for_status()
+                return True
+            except Exception as e:
+                last_exc = e
+        if last_exc:
+            raise last_exc
+    return False
 
 
 async def _send_twilio_message(from_number: str, to_number: str, body: str) -> bool:
