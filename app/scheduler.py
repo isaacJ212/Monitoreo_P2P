@@ -8,6 +8,7 @@ from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
 from app.Servicies.notifier import dispatch_alert, dispatch_arbitrage_alert
 from app.Servicies.predictor import build_predictions, get_historical_averages
+from app.Servicies.report_service import dispatch_market_report
 
 
 scheduler = AsyncIOScheduler()
@@ -114,6 +115,21 @@ async def run_monitoring_cycle() -> dict:
     return summary
 
 
+async def run_periodic_report() -> dict | None:
+    if not settings.ENABLE_PERIODIC_REPORTS:
+        return None
+    db = SessionLocal()
+    try:
+        rule = FIAT_RULES.get("NIO", {})
+        budget = float(rule.get("budget", 5000.0))
+        return await dispatch_market_report(db, fiat="NIO", asset="USDT", budget=budget)
+    except Exception as exc:
+        print(f"[Error Job Informe Periódico] {exc}")
+        return None
+    finally:
+        db.close()
+
+
 def start_scheduler():
     scheduler.add_job(
         run_monitoring_cycle,
@@ -122,4 +138,12 @@ def start_scheduler():
         id="p2p_monitor_job",
         replace_existing=True,
     )
+    if settings.ENABLE_PERIODIC_REPORTS:
+        scheduler.add_job(
+            run_periodic_report,
+            "interval",
+            minutes=settings.REPORT_INTERVAL_MINUTES,
+            id="periodic_report_job",
+            replace_existing=True,
+        )
     scheduler.start()

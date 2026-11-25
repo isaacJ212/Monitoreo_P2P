@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./p2p_monitor.db"
     POLL_INTERVAL_MINUTES: int = 3
     ALERT_COOLDOWN_MINUTES: int = 20
+    REPORT_INTERVAL_MINUTES: int = 60  # Intervalo de informes periódicos (15 o 60 minutos)
+    ENABLE_PERIODIC_REPORTS: bool = True
 
     # Filtro de seguridad para comerciantes
     MIN_FINISH_RATE: float = 0.90

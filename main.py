@@ -9,14 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 
-from app.config.Config import FIAT_RULES
+from app.config.Config import FIAT_RULES, settings
 from app.Database.database import Base, engine, get_db
 from app.Models.models import AlertLog, MarketSnapshot
-from app.scheduler import run_monitoring_cycle, scheduler, start_scheduler
+from app.scheduler import run_monitoring_cycle, run_periodic_report, scheduler, start_scheduler
 from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse, SmartTargetResponse
 from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
 from app.Servicies.predictor import build_predictions, calculate_smart_targets, get_historical_averages
+from app.Servicies.report_service import dispatch_market_report, generate_market_report
 
 
 @asynccontextmanager
@@ -167,3 +168,46 @@ def upsert_rule(fiat: str, rule: FiatRuleUpdate):
 async def trigger_manual_cycle():
     result = await run_monitoring_cycle()
     return {"status": "completed", "summary": result}
+
+
+@app.post("/api/v1/reports/send-now")
+async def send_report_now(budget: float = Query(5000.0), db: Session = Depends(get_db)):
+    result = await dispatch_market_report(db, fiat="NIO", asset="USDT", budget=budget)
+    return result
+
+
+@app.get("/api/v1/reports/latest")
+async def get_latest_report(budget: float = Query(5000.0), db: Session = Depends(get_db)):
+    data = await generate_market_report(db, fiat="NIO", asset="USDT", budget=budget)
+    return data
+
+
+@app.get("/api/v1/config/report-settings")
+def get_report_settings():
+    return {
+        "interval_minutes": settings.REPORT_INTERVAL_MINUTES,
+        "enabled": settings.ENABLE_PERIODIC_REPORTS,
+        "email_to": settings.ALERT_EMAIL_TO,
+    }
+
+
+@app.put("/api/v1/config/report-settings")
+def update_report_settings(interval_minutes: int = Query(..., ge=5, le=1440), enabled: bool = Query(True)):
+    settings.REPORT_INTERVAL_MINUTES = interval_minutes
+    settings.ENABLE_PERIODIC_REPORTS = enabled
+
+    if scheduler.get_job("periodic_report_job"):
+        scheduler.remove_job("periodic_report_job")
+    if enabled:
+        scheduler.add_job(
+            run_periodic_report,
+            "interval",
+            minutes=interval_minutes,
+            id="periodic_report_job",
+            replace_existing=True,
+        )
+    return {
+        "interval_minutes": settings.REPORT_INTERVAL_MINUTES,
+        "enabled": settings.ENABLE_PERIODIC_REPORTS,
+        "status": "updated",
+    }
