@@ -246,10 +246,11 @@
           <div class="flex flex-wrap items-center gap-2.5">
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs">C$</span>
-              <input type="number" id="input-user-capital" value="5000" step="500" min="200" onchange="onQuickConfigChange()" oninput="onCapitalInputLive()" class="bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white font-mono font-bold text-sm w-36 focus:outline-none focus:border-amber-400">
+              <input type="number" id="input-user-capital" value="5000" step="any" min="1" onchange="onQuickConfigChange()" oninput="onCapitalInputLive()" class="bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-white font-mono font-bold text-sm w-36 focus:outline-none focus:border-amber-400">
             </div>
 
             <div class="flex gap-1 text-xs">
+              <button onclick="setCapital(1000)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-2 rounded-lg font-mono transition">1K</button>
               <button onclick="setCapital(2000)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-2 rounded-lg font-mono transition">2K</button>
               <button onclick="setCapital(5000)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-2 rounded-lg font-mono transition">5K</button>
               <button onclick="setCapital(10000)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-2 rounded-lg font-mono transition">10K</button>
@@ -672,7 +673,7 @@
           <p class="text-xs font-bold text-white">💼 Tu Operación Habitual:</p>
           <div>
             <label class="block text-slate-300 font-medium mb-1">Monto a operar (Córdobas C$):</label>
-            <input type="number" step="100" min="200" id="cfg-budget-modal" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-amber-400">
+            <input type="number" step="any" min="1" id="cfg-budget-modal" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono font-bold focus:outline-none focus:border-amber-400">
           </div>
           <div>
             <label class="block text-slate-300 font-medium mb-1">Banco / Método de pago preferido:</label>
@@ -840,14 +841,17 @@
     }
 
     function onCapitalInputLive() {
-      const val = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      const val = parseFloat(document.getElementById('input-user-capital').value);
+      if (!Number.isFinite(val) || val < 1) return;
       saveLocalConfig({ budget: val });
       renderArbitrageSection();
       if (selectedManualBuy && selectedManualSell) recalcularMatchSeleccionado();
     }
 
     function onQuickConfigChange() {
-      const budget = parseFloat(document.getElementById('input-user-capital').value) || 5000;
+      const rawVal = parseFloat(document.getElementById('input-user-capital').value);
+      const budget = (Number.isFinite(rawVal) && rawVal >= 1) ? rawVal : 5000;
+      document.getElementById('input-user-capital').value = budget;
       const payType = document.getElementById('select-pay-type').value;
       const onlyVerified = Boolean(loadLocalConfig().onlyVerified);
       saveLocalConfig({ budget, payType, onlyVerified });
