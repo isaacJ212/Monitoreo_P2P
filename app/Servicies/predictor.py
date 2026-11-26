@@ -1,18 +1,27 @@
 import json
 from collections import defaultdict
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 import numpy as np
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.Models.models import MarketSnapshot
 from app.Schemas.schemas import (
     ArbitrageWindow,
+    ForecastPoint,
     HourlyPattern,
     PaymentMethodStat,
     PredictionResponse,
     PredictionSide,
     TimePatternAnalysis,
 )
+
+TZ_NI = timezone(timedelta(hours=-6))
+
+
+def _as_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _analyze_series(db: Session, fiat: str, trade_type: str, limit: int = 120) -> PredictionSide:
@@ -33,7 +42,7 @@ def _analyze_series(db: Session, fiat: str, trade_type: str, limit: int = 120) -
     rows.reverse()  # Orden cronológico
 
     prices = np.array([r.best_price for r in rows], dtype=float)
-    timestamps = np.array([r.timestamp.timestamp() for r in rows], dtype=float)
+    timestamps = np.array([_as_utc(r.timestamp).timestamp() for r in rows], dtype=float)
     t_minutes = (timestamps - timestamps[0]) / 60.0
 
     current_price = float(prices[-1])
@@ -44,14 +53,17 @@ def _analyze_series(db: Session, fiat: str, trade_type: str, limit: int = 120) -
     mean_price = float(np.mean(prices))
     z_score = float((current_price - mean_price) / std_dev) if std_dev > 1e-6 else 0.0
 
-    # Regresión lineal sobre los últimos puntos
+    # Regresión lineal sobre los últimos puntos, anclada suavemente al precio actual
     recent_t = t_minutes[-min(len(t_minutes), 24):]
     recent_p = prices[-min(len(prices), 24):]
     if np.ptp(recent_t) > 0:
-        slope, intercept = np.polyfit(recent_t, recent_p, 1)
-        last_t = recent_t[-1]
-        proj_30m = float(slope * (last_t + 30.0) + intercept)
-        proj_60m = float(slope * (last_t + 60.0) + intercept)
+        slope, _ = np.polyfit(recent_t, recent_p, 1)
+        # Amortiguación para evitar extrapolaciones irreales si la serie tiene saltos bruscos
+        max_delta = max(0.03, std_dev * 1.5, current_price * 0.005)
+        delta_30 = float(np.clip(slope * 30.0 * 0.85, -max_delta, max_delta))
+        delta_60 = float(np.clip(slope * 60.0 * 0.70, -max_delta * 1.35, max_delta * 1.35))
+        proj_30m = current_price + delta_30
+        proj_60m = current_price + delta_60
     else:
         slope = 0.0
         proj_30m = current_price
@@ -285,6 +297,100 @@ def _analyze_time_and_payments(db: Session, fiat: str, asset: str = "USDT") -> T
     )
 
 
+def _build_timeline_forecast(
+    last_ts_utc: datetime | None,
+    buy_analysis: PredictionSide,
+    sell_analysis: PredictionSide,
+    time_patterns: TimePatternAnalysis,
+    avg_buy: float | None,
+    avg_sell: float | None,
+) -> list[ForecastPoint]:
+    """Genera puntos de predicción cronológicos anclados exactamente al último snapshot."""
+    if last_ts_utc is None:
+        return []
+
+    cur_buy = buy_analysis.current_price
+    cur_sell = sell_analysis.current_price
+    if cur_buy is None and cur_sell is None:
+        return []
+
+    hourly_buy_map = {
+        h.hour_local: h.avg_buy_price
+        for h in time_patterns.hourly_patterns
+        if h.avg_buy_price is not None
+    }
+    hourly_sell_map = {
+        h.hour_local: h.avg_sell_price
+        for h in time_patterns.hourly_patterns
+        if h.avg_sell_price is not None
+    }
+
+    p30_b = buy_analysis.projected_next_30m if buy_analysis.projected_next_30m is not None else cur_buy
+    p60_b = buy_analysis.projected_next_60m if buy_analysis.projected_next_60m is not None else cur_buy
+    p30_s = sell_analysis.projected_next_30m if sell_analysis.projected_next_30m is not None else cur_sell
+    p60_s = sell_analysis.projected_next_60m if sell_analysis.projected_next_60m is not None else cur_sell
+
+    ref_buy = buy_analysis.sma_long or avg_buy or cur_buy
+    ref_sell = sell_analysis.sma_long or avg_sell or cur_sell
+    base_ni_date = last_ts_utc.astimezone(TZ_NI).date()
+
+    def _project_at(mins: int, cur: float | None, p30: float | None, p60: float | None, ref: float | None, hourly_map: dict[int, float], future_hour: int) -> float | None:
+        if cur is None:
+            return None
+        if mins == 0:
+            return round(cur, 4)
+        if mins == 15:
+            return round((cur + (p30 if p30 is not None else cur)) / 2.0, 4)
+        if mins == 30:
+            return round(p30 if p30 is not None else cur, 4)
+        if mins == 45:
+            return round(((p30 if p30 is not None else cur) + (p60 if p60 is not None else cur)) / 2.0, 4)
+        if mins == 60:
+            return round(p60 if p60 is not None else cur, 4)
+        # +90m, +120m, +180m: mezcla progresiva entre proyección 60m y patrón horario real de Nicaragua
+        base = p60 if p60 is not None else cur
+        target = hourly_map.get(future_hour, ref if ref is not None else base)
+        blend_w = {90: 0.40, 120: 0.65, 180: 0.85}.get(mins, 0.50)
+        return round(base * (1.0 - blend_w) + target * blend_w, 4)
+
+    offsets = [0, 15, 30, 45, 60, 90, 120, 180]
+    forecast: list[ForecastPoint] = []
+
+    for mins in offsets:
+        dt_utc = last_ts_utc + timedelta(minutes=mins)
+        dt_ni = dt_utc.astimezone(TZ_NI)
+        future_hour = dt_ni.hour
+        pred_b = _project_at(mins, cur_buy, p30_b, p60_b, ref_buy, hourly_buy_map, future_hour)
+        pred_s = _project_at(mins, cur_sell, p30_s, p60_s, ref_sell, hourly_sell_map, future_hour)
+
+        # Etiqueta clara en hora Nicaragua
+        if dt_ni.date() != base_ni_date:
+            lbl = dt_ni.strftime("%d/%m %I:%M %p")
+        else:
+            lbl = dt_ni.strftime("%I:%M %p")
+
+        # Señal táctica de compra/venta
+        signal = "NEUTRAL"
+        if pred_b is not None and ref_buy and pred_b <= ref_buy * 0.9985:
+            signal = "COMPRAR"
+        elif pred_s is not None and ref_sell and pred_s >= ref_sell * 1.0015:
+            signal = "VENDER"
+
+        forecast.append(
+            ForecastPoint(
+                timestamp=dt_utc,
+                timestamp_ms=int(dt_utc.timestamp() * 1000),
+                timestamp_local=lbl,
+                minutes_ahead=mins,
+                predicted_buy=pred_b,
+                predicted_sell=pred_s,
+                signal=signal,
+            )
+        )
+
+    return forecast
+
+
 def build_predictions(db: Session, fiat: str, asset: str = "USDT") -> PredictionResponse:
     clean_fiat = fiat.upper()
     clean_asset = asset.upper()
@@ -299,19 +405,34 @@ def build_predictions(db: Session, fiat: str, asset: str = "USDT") -> Prediction
         .filter(MarketSnapshot.fiat == clean_fiat, MarketSnapshot.trade_type == "SELL")
         .scalar()
     )
+    latest_ts = (
+        db.query(func.max(MarketSnapshot.timestamp))
+        .filter(MarketSnapshot.fiat == clean_fiat)
+        .scalar()
+    )
+    latest_ts_utc = _as_utc(latest_ts) if latest_ts else None
 
     avg_buy, avg_sell = get_historical_averages(db, clean_fiat, clean_asset)
+    buy_analysis = _analyze_series(db, clean_fiat, "BUY")
+    sell_analysis = _analyze_series(db, clean_fiat, "SELL")
+    time_patterns = _analyze_time_and_payments(db, clean_fiat, clean_asset)
+    timeline_forecast = _build_timeline_forecast(
+        latest_ts_utc, buy_analysis, sell_analysis, time_patterns, avg_buy, avg_sell
+    )
 
     return PredictionResponse(
         fiat=clean_fiat,
         asset=clean_asset,
-        buy_analysis=_analyze_series(db, clean_fiat, "BUY"),
-        sell_analysis=_analyze_series(db, clean_fiat, "SELL"),
+        buy_analysis=buy_analysis,
+        sell_analysis=sell_analysis,
         historical_min_buy=round(min_buy, 4) if min_buy else None,
         historical_max_sell=round(max_sell, 4) if max_sell else None,
         historical_avg_buy=avg_buy,
         historical_avg_sell=avg_sell,
-        time_patterns=_analyze_time_and_payments(db, clean_fiat, clean_asset),
+        time_patterns=time_patterns,
+        last_snapshot_at=latest_ts_utc,
+        last_snapshot_ms=int(latest_ts_utc.timestamp() * 1000) if latest_ts_utc else None,
+        timeline_forecast=timeline_forecast,
     )
 
 

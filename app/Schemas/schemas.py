@@ -87,6 +87,31 @@ class ArbitrageMatch(BaseModel):
     top_matches: list[ArbitragePair] = []
 
 
+class GeneralMarketStats(BaseModel):
+    best_buy_price: float | None = None
+    best_sell_price: float | None = None
+    avg_top5_buy: float | None = None
+    avg_top5_sell: float | None = None
+    min_buy_price: float | None = None
+    max_buy_price: float | None = None
+    min_sell_price: float | None = None
+    max_sell_price: float | None = None
+    general_spread: float | None = None
+    general_spread_pct: float | None = None
+    total_buy_ads: int = 0
+    total_sell_ads: int = 0
+    available_banks: list[str] = []
+
+
+class AppliedMarketConfig(BaseModel):
+    budget: float = 5000.0
+    pay_type: str | None = None
+    only_merchants: bool = False
+    filtered_buy_count: int = 0
+    filtered_sell_count: int = 0
+    budget_filtered: bool = False
+
+
 class LiveMarketResponse(BaseModel):
     fiat: str
     asset: str
@@ -98,6 +123,13 @@ class LiveMarketResponse(BaseModel):
     arbitrage_match: ArbitrageMatch | None = None
     historical_avg_buy: float | None = None
     historical_avg_sell: float | None = None
+    general_best_buy: AdDetail | None = None
+    general_best_sell: AdDetail | None = None
+    general_buy_ads: list[AdDetail] = []
+    general_sell_ads: list[AdDetail] = []
+    general_arbitrage_match: ArbitrageMatch | None = None
+    general_stats: GeneralMarketStats | None = None
+    applied_config: AppliedMarketConfig | None = None
 
 
 class PredictionSide(BaseModel):
@@ -149,6 +181,16 @@ class TimePatternAnalysis(BaseModel):
     summary_insight: str = ""
 
 
+class ForecastPoint(BaseModel):
+    timestamp: datetime
+    timestamp_ms: int
+    timestamp_local: str
+    minutes_ahead: int
+    predicted_buy: float | None = None
+    predicted_sell: float | None = None
+    signal: str = "NEUTRAL"
+
+
 class PredictionResponse(BaseModel):
     fiat: str
     asset: str
@@ -159,6 +201,9 @@ class PredictionResponse(BaseModel):
     historical_avg_buy: float | None = None
     historical_avg_sell: float | None = None
     time_patterns: TimePatternAnalysis | None = None
+    last_snapshot_at: datetime | None = None
+    last_snapshot_ms: int | None = None
+    timeline_forecast: list[ForecastPoint] = []
 
 
 class FiatRuleUpdate(BaseModel):
@@ -167,6 +212,7 @@ class FiatRuleUpdate(BaseModel):
     sell_target: float = Field(..., gt=0)
     budget: float = Field(..., gt=0)
     pay_types: list[str] = []
+    only_verified_merchants: bool = False
     enabled: bool = True
     auto_smart_mode: bool = False
 

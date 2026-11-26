@@ -5,7 +5,7 @@ from app.config.Config import FIAT_RULES, settings
 from app.Database.database import SessionLocal
 from app.Models.models import MarketSnapshot
 from app.Servicies.arbitrage import compute_arbitrage_match
-from app.Servicies.binance import fetch_p2p_ads
+from app.Servicies.binance import fetch_p2p_market_depth, filter_ads_by_config
 from app.Servicies.notifier import dispatch_alert, dispatch_arbitrage_alert
 from app.Servicies.predictor import build_predictions, get_historical_averages
 from app.Servicies.report_service import dispatch_market_report
@@ -25,12 +25,14 @@ async def run_monitoring_cycle() -> dict:
             asset = rule.get("asset", "USDT")
             budget = float(rule.get("budget", 5000.0))
             pay_types = rule.get("pay_types", [])
+            only_merchants = bool(rule.get("only_verified_merchants", False))
 
-            buy_ads = await fetch_p2p_ads(fiat, "BUY", asset, budget, pay_types)
-            sell_ads = await fetch_p2p_ads(fiat, "SELL", asset, budget, pay_types)
+            # Mercado general para guardar histórico real del comercio P2P
+            general_buy_ads = await fetch_p2p_market_depth(fiat, "BUY", asset, budget=budget, only_merchants=False, pages=2)
+            general_sell_ads = await fetch_p2p_market_depth(fiat, "SELL", asset, budget=budget, only_merchants=False, pages=2)
 
-            # Guardar instantáneas en base de datos
-            for side, ads in (("BUY", buy_ads), ("SELL", sell_ads)):
+            # Guardar instantáneas del mercado general en base de datos
+            for side, ads in (("BUY", general_buy_ads), ("SELL", general_sell_ads)):
                 if not ads:
                     continue
                 best = ads[0]
@@ -52,6 +54,18 @@ async def run_monitoring_cycle() -> dict:
                 db.add(snapshot)
 
             db.commit()
+
+            # Filtrar anuncios según las preferencias guardadas para evaluar alertas personalizadas
+            buy_ads, _ = filter_ads_by_config(
+                general_buy_ads, budget=budget, pay_types=pay_types, only_merchants=only_merchants
+            )
+            sell_ads, _ = filter_ads_by_config(
+                general_sell_ads, budget=budget, pay_types=pay_types, only_merchants=only_merchants
+            )
+            if not buy_ads:
+                buy_ads = general_buy_ads
+            if not sell_ads:
+                sell_ads = general_sell_ads
 
             # Obtener promedios históricos y predicciones
             avg_buy_hist, avg_sell_hist = get_historical_averages(db, fiat, asset)

@@ -6,24 +6,82 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+import numpy as np
 from sqlalchemy.orm import Session
 
 
 from app.config.Config import FIAT_RULES, settings
-from app.Database.database import Base, auto_sync_sqlite_to_target, engine, get_db
-from app.Models.models import AlertLog, MarketSnapshot
+from app.Database.database import Base, SessionLocal, auto_sync_sqlite_to_target, engine, get_db
+from app.Models.models import AlertLog, MarketSnapshot, UserConfig
 from app.scheduler import run_monitoring_cycle, run_periodic_report, scheduler, start_scheduler
-from app.Schemas.schemas import FiatRuleUpdate, LiveMarketResponse, PredictionResponse, SmartTargetResponse
+from app.Schemas.schemas import (
+    AppliedMarketConfig,
+    FiatRuleUpdate,
+    GeneralMarketStats,
+    LiveMarketResponse,
+    PredictionResponse,
+    SmartTargetResponse,
+)
 from app.Servicies.arbitrage import compute_arbitrage_match
-from app.Servicies.binance import fetch_p2p_ads
+from app.Servicies.binance import (
+    fetch_p2p_market_depth,
+    filter_ads_by_config,
+    normalize_bank_label,
+)
 from app.Servicies.predictor import build_predictions, calculate_smart_targets, get_historical_averages
 from app.Servicies.report_service import dispatch_market_report, generate_market_report
+
+
+def _load_or_seed_user_configs():
+    """Carga la configuración persistida desde la BD hacia FIAT_RULES / settings."""
+    db = SessionLocal()
+    try:
+        configs = db.query(UserConfig).all()
+        if not configs:
+            for fiat_code, rule in FIAT_RULES.items():
+                db.add(
+                    UserConfig(
+                        fiat=fiat_code.upper(),
+                        asset=rule.get("asset", "USDT"),
+                        budget=float(rule.get("budget", 5000.0)),
+                        pay_types=json.dumps(rule.get("pay_types", [])),
+                        buy_target=float(rule.get("buy_target", 36.80)),
+                        sell_target=float(rule.get("sell_target", 40.00)),
+                        only_verified_merchants=bool(rule.get("only_verified_merchants", False)),
+                        enabled=bool(rule.get("enabled", True)),
+                        report_interval_minutes=int(settings.REPORT_INTERVAL_MINUTES),
+                        enable_periodic_reports=bool(settings.ENABLE_PERIODIC_REPORTS),
+                    )
+                )
+            db.commit()
+            return
+
+        for cfg in configs:
+            try:
+                pts = json.loads(cfg.pay_types) if cfg.pay_types else []
+            except Exception:
+                pts = []
+            FIAT_RULES[cfg.fiat.upper()] = {
+                "asset": cfg.asset,
+                "buy_target": cfg.buy_target,
+                "sell_target": cfg.sell_target,
+                "budget": cfg.budget,
+                "pay_types": pts,
+                "only_verified_merchants": cfg.only_verified_merchants,
+                "enabled": cfg.enabled,
+            }
+            if cfg.fiat.upper() == "NIO":
+                settings.REPORT_INTERVAL_MINUTES = cfg.report_interval_minutes
+                settings.ENABLE_PERIODIC_REPORTS = cfg.enable_periodic_reports
+    finally:
+        db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     auto_sync_sqlite_to_target(engine)
+    _load_or_seed_user_configs()
     start_scheduler()
     yield
     scheduler.shutdown()
@@ -60,31 +118,108 @@ async def serve_dashboard():
 async def get_live_market(
     fiat: str,
     asset: str = "USDT",
-    budget: float = Query(5000.0, gt=0),
+    budget: float | None = Query(None, gt=0),
     pay_type: str | None = None,
-    only_merchants: bool = False,
+    only_merchants: bool | None = None,
     db: Session = Depends(get_db),
 ):
     fiat_code = fiat.upper()
     asset_code = asset.upper()
-    pay_types = [pay_type] if pay_type else []
-    buy_ads = await fetch_p2p_ads(fiat_code, "BUY", asset_code, budget, pay_types, only_merchants=only_merchants)
-    sell_ads = await fetch_p2p_ads(fiat_code, "SELL", asset_code, budget, pay_types, only_merchants=only_merchants)
 
-    arbitrage_match = compute_arbitrage_match(buy_ads, sell_ads, budget=budget, fiat=fiat_code, asset=asset_code)
+    # Si no se envían parámetros explícitos, usar configuración guardada
+    saved_rule = FIAT_RULES.get(fiat_code, {})
+    eff_budget = float(budget if budget is not None else saved_rule.get("budget", 5000.0))
+    saved_pts = saved_rule.get("pay_types") or []
+    eff_pay_type = pay_type if pay_type is not None else (saved_pts[0] if saved_pts else "")
+    eff_only_merchants = bool(
+        only_merchants if only_merchants is not None else saved_rule.get("only_verified_merchants", False)
+    )
+    pay_types = [eff_pay_type] if eff_pay_type and eff_pay_type.strip() else []
+
+    # 1. Mercado general completo (sin filtros de banco, monto ni verificados)
+    general_buy_ads = await fetch_p2p_market_depth(
+        fiat_code, "BUY", asset_code, budget=eff_budget, only_merchants=False, pages=2
+    )
+    general_sell_ads = await fetch_p2p_market_depth(
+        fiat_code, "SELL", asset_code, budget=eff_budget, only_merchants=False, pages=2
+    )
+
+    general_arbitrage = compute_arbitrage_match(
+        general_buy_ads, general_sell_ads, budget=eff_budget, fiat=fiat_code, asset=asset_code
+    )
+
+    # Estadísticas globales del mercado P2P (Compra y Venta)
+    bank_counts: dict[str, int] = {}
+    for ad in general_buy_ads + general_sell_ads:
+        for m in ad.payment_methods:
+            lbl = normalize_bank_label(m)
+            if lbl:
+                bank_counts[lbl] = bank_counts.get(lbl, 0) + 1
+    top_banks = [k for k, _ in sorted(bank_counts.items(), key=lambda x: x[1], reverse=True)[:6]]
+
+    gen_best_buy = general_buy_ads[0] if general_buy_ads else None
+    gen_best_sell = general_sell_ads[0] if general_sell_ads else None
+    gen_spread = round(gen_best_sell.price - gen_best_buy.price, 4) if (gen_best_buy and gen_best_sell) else None
+    gen_spread_pct = (
+        round((gen_spread / gen_best_buy.price) * 100, 2)
+        if (gen_spread is not None and gen_best_buy and gen_best_buy.price > 0)
+        else None
+    )
+
+    general_stats = GeneralMarketStats(
+        best_buy_price=gen_best_buy.price if gen_best_buy else None,
+        best_sell_price=gen_best_sell.price if gen_best_sell else None,
+        avg_top5_buy=round(float(np.mean([a.price for a in general_buy_ads[:5]])), 4) if general_buy_ads else None,
+        avg_top5_sell=round(float(np.mean([a.price for a in general_sell_ads[:5]])), 4) if general_sell_ads else None,
+        min_buy_price=min(a.price for a in general_buy_ads) if general_buy_ads else None,
+        max_buy_price=max(a.price for a in general_buy_ads) if general_buy_ads else None,
+        min_sell_price=min(a.price for a in general_sell_ads) if general_sell_ads else None,
+        max_sell_price=max(a.price for a in general_sell_ads) if general_sell_ads else None,
+        general_spread=gen_spread,
+        general_spread_pct=gen_spread_pct,
+        total_buy_ads=len(general_buy_ads),
+        total_sell_ads=len(general_sell_ads),
+        available_banks=top_banks,
+    )
+
+    # 2. Mercado filtrado según las configuraciones guardadas del usuario
+    filtered_buys, budget_buy_applied = filter_ads_by_config(
+        general_buy_ads, budget=eff_budget, pay_types=pay_types, only_merchants=eff_only_merchants
+    )
+    filtered_sells, budget_sell_applied = filter_ads_by_config(
+        general_sell_ads, budget=eff_budget, pay_types=pay_types, only_merchants=eff_only_merchants
+    )
+
+    arbitrage_match = compute_arbitrage_match(
+        filtered_buys, filtered_sells, budget=eff_budget, fiat=fiat_code, asset=asset_code
+    )
     avg_buy, avg_sell = get_historical_averages(db, fiat_code, asset_code)
 
     return LiveMarketResponse(
         fiat=fiat_code,
         asset=asset_code,
         checked_at=datetime.now(timezone.utc),
-        best_buy=buy_ads[0] if buy_ads else None,   
-        best_sell=sell_ads[0] if sell_ads else None,
-        buy_ads=buy_ads[:10],
-        sell_ads=sell_ads[:10],
+        best_buy=filtered_buys[0] if filtered_buys else None,
+        best_sell=filtered_sells[0] if filtered_sells else None,
+        buy_ads=filtered_buys[:12],
+        sell_ads=filtered_sells[:12],
         arbitrage_match=arbitrage_match,
         historical_avg_buy=avg_buy,
         historical_avg_sell=avg_sell,
+        general_best_buy=gen_best_buy,
+        general_best_sell=gen_best_sell,
+        general_buy_ads=general_buy_ads[:12],
+        general_sell_ads=general_sell_ads[:12],
+        general_arbitrage_match=general_arbitrage,
+        general_stats=general_stats,
+        applied_config=AppliedMarketConfig(
+            budget=eff_budget,
+            pay_type=eff_pay_type or None,
+            only_merchants=eff_only_merchants,
+            filtered_buy_count=len(filtered_buys),
+            filtered_sell_count=len(filtered_sells),
+            budget_filtered=bool(budget_buy_applied or budget_sell_applied),
+        ),
     )
 
 
@@ -94,10 +229,33 @@ def get_predictions(fiat: str, asset: str = "USDT", db: Session = Depends(get_db
     return build_predictions(db, fiat, asset)
 
 
+def _parse_ni_dt(raw: str, tz_ni: timezone) -> datetime:
+    cleaned = raw.strip().replace(" ", "T")
+    dt = datetime.fromisoformat(cleaned)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=tz_ni)
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _as_utc_dt(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+
+
+def _downsample_list(items: list, max_points: int = 320) -> list:
+    total = len(items)
+    if total <= max_points:
+        return items
+    step = max(1, total // (max_points - 20))
+    sampled = [items[i] for i in range(0, total - 1, step)]
+    if items[-1] is not sampled[-1]:
+        sampled.append(items[-1])
+    return sampled
+
+
 @app.get("/api/v1/history/{fiat}")
 def get_price_history(
     fiat: str,
-    trade_type: str = Query("BUY", pattern="^(BUY|SELL)$"),
+    trade_type: str = Query("BOTH", pattern="^(BUY|SELL|BOTH)$"),
     time_range: str | None = Query(None, pattern="^(1h|6h|12h|24h|7d|30d|1m)$"),
     hours: float | None = Query(None),
     start_time: str | None = Query(None),
@@ -107,49 +265,36 @@ def get_price_history(
 ):
     tz_ni = timezone(timedelta(hours=-6))  # Zona horaria de Nicaragua (UTC-6)
     now_utc = datetime.now(timezone.utc)
+    fiat_code = fiat.upper()
     is_long_range = False
+
+    base_filter = [MarketSnapshot.fiat == fiat_code]
+    if trade_type in ("BUY", "SELL"):
+        base_filter.append(MarketSnapshot.trade_type == trade_type)
 
     # 1. Filtro Manual por Fecha y Hora exacta (Desde / Hasta)
     if start_time:
         try:
-            st_clean = start_time.strip().replace(" ", "T")
-            start_dt = datetime.fromisoformat(st_clean)
-            if start_dt.tzinfo is None:
-                start_dt = start_dt.replace(tzinfo=tz_ni)
-            start_utc = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            start_utc = _parse_ni_dt(start_time, tz_ni)
+            end_utc = _parse_ni_dt(end_time, tz_ni) if end_time else now_utc.replace(tzinfo=None)
 
-            if end_time:
-                et_clean = end_time.strip().replace(" ", "T")
-                end_dt = datetime.fromisoformat(et_clean)
-                if end_dt.tzinfo is None:
-                    end_dt = end_dt.replace(tzinfo=tz_ni)
-                end_utc = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
-            else:
-                end_utc = now_utc.replace(tzinfo=None)
-
-            # Validar límites: mínimo 1 hora, máximo 31 días (1 mes)
             diff = end_utc - start_utc
             if diff < timedelta(hours=1):
                 start_utc = end_utc - timedelta(hours=1)
             elif diff > timedelta(days=31):
                 start_utc = end_utc - timedelta(days=31)
 
-            query = (
+            rows = (
                 db.query(MarketSnapshot)
-                .filter(
-                    MarketSnapshot.fiat == fiat.upper(),
-                    MarketSnapshot.trade_type == trade_type,
-                    MarketSnapshot.timestamp >= start_utc,
-                    MarketSnapshot.timestamp <= end_utc
-                )
+                .filter(*base_filter, MarketSnapshot.timestamp >= start_utc, MarketSnapshot.timestamp <= end_utc)
                 .order_by(MarketSnapshot.timestamp.asc())
+                .all()
             )
-            rows = query.all()
             is_long_range = (end_utc - start_utc) > timedelta(hours=24)
         except Exception:
             rows = []
     else:
-        # 2. Filtro Manual por Cantidad de Horas o Días (mínimo 1 hora, máximo 31 días = 744 horas)
+        # 2. Filtro por Horas/Días (mínimo 1 hora, máximo 31 días = 744 horas)
         if hours is not None:
             clamped_hours = max(1.0, min(744.0, float(hours)))
             delta = timedelta(hours=clamped_hours)
@@ -169,57 +314,99 @@ def get_price_history(
         cutoff_utc = (now_utc - delta).replace(tzinfo=None)
         rows = (
             db.query(MarketSnapshot)
-            .filter(
-                MarketSnapshot.fiat == fiat.upper(),
-                MarketSnapshot.trade_type == trade_type,
-                MarketSnapshot.timestamp >= cutoff_utc
-            )
+            .filter(*base_filter, MarketSnapshot.timestamp >= cutoff_utc)
             .order_by(MarketSnapshot.timestamp.asc())
             .all()
         )
         is_long_range = delta > timedelta(hours=24)
 
-    # Si hay pocos o ningún registro en ese rango específico, asegurar devolver los más recientes disponibles
-    if not rows:
-        rows = (
-            db.query(MarketSnapshot)
-            .filter(MarketSnapshot.fiat == fiat.upper(), MarketSnapshot.trade_type == trade_type)
-            .order_by(MarketSnapshot.timestamp.desc())
-            .limit(limit)
-            .all()
-        )
-        rows.reverse()
-        is_long_range = False
+        # Si el monitor estuvo pausado recientemente y no hay registros respecto a now_utc,
+        # anclar la ventana relativa al último snapshot guardado en la BD.
+        if not rows:
+            latest = (
+                db.query(MarketSnapshot)
+                .filter(*base_filter)
+                .order_by(MarketSnapshot.timestamp.desc())
+                .first()
+            )
+            if latest:
+                latest_naive = _as_utc_dt(latest.timestamp).replace(tzinfo=None)
+                anchored_cutoff = latest_naive - delta
+                rows = (
+                    db.query(MarketSnapshot)
+                    .filter(*base_filter, MarketSnapshot.timestamp >= anchored_cutoff)
+                    .order_by(MarketSnapshot.timestamp.asc())
+                    .all()
+                )
 
-    # Muestreo inteligente (downsampling) para rangos largos (ej: 7D o 1M con miles de puntos)
-    # asegurando que el gráfico en el frontend sea ultra fluido sin perder tendencias
-    total_rows = len(rows)
-    if total_rows > 350:
-        step = max(1, total_rows // 300)
-        sampled = [rows[i] for i in range(0, total_rows - 1, step)]
-        if rows[-1] not in sampled:
-            sampled.append(rows[-1])
-        rows = sampled
+    if trade_type in ("BUY", "SELL"):
+        rows = _downsample_list(rows, max_points=320)
+        result = []
+        for r in rows:
+            dt = _as_utc_dt(r.timestamp)
+            local_dt = dt.astimezone(tz_ni)
+            label_time = local_dt.strftime("%d/%m %I:%M %p") if is_long_range else local_dt.strftime("%I:%M %p")
+            result.append({
+                "timestamp": dt.isoformat(),
+                "timestamp_ms": int(dt.timestamp() * 1000),
+                "timestamp_local": label_time,
+                "hour_local": local_dt.hour,
+                "best_price": r.best_price,
+                "avg_top5_price": r.avg_top5_price,
+                "min_limit": r.min_limit,
+                "max_limit": r.max_limit,
+                "payment_methods": json.loads(r.payment_methods) if isinstance(r.payment_methods, str) else r.payment_methods,
+                "merchant_name": r.merchant_name,
+            })
+        return result
 
-    result = []
+    # Modo BOTH: emparejar BUY y SELL cronológicamente por ventana de ciclo (<= 90s)
+    paired_cycles: list[dict] = []
     for r in rows:
-        dt = r.timestamp
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+        dt = _as_utc_dt(r.timestamp)
+        ts_ms = int(dt.timestamp() * 1000)
+        methods = json.loads(r.payment_methods) if isinstance(r.payment_methods, str) else (r.payment_methods or [])
+
+        # Reutilizar último ciclo si está dentro de 90 segundos y le falta este lado
+        if paired_cycles and abs(ts_ms - paired_cycles[-1]["timestamp_ms"]) <= 90_000:
+            cycle = paired_cycles[-1]
+            if r.trade_type == "BUY" and cycle["buy_price"] is None:
+                cycle["buy_price"] = r.best_price
+                cycle["buy_avg_top5"] = r.avg_top5_price
+                cycle["buy_merchant"] = r.merchant_name
+                cycle["buy_payment_methods"] = methods
+                continue
+            if r.trade_type == "SELL" and cycle["sell_price"] is None:
+                cycle["sell_price"] = r.best_price
+                cycle["sell_avg_top5"] = r.avg_top5_price
+                cycle["sell_merchant"] = r.merchant_name
+                cycle["sell_payment_methods"] = methods
+                continue
+
         local_dt = dt.astimezone(tz_ni)
         label_time = local_dt.strftime("%d/%m %I:%M %p") if is_long_range else local_dt.strftime("%I:%M %p")
-
-        result.append({
+        cycle = {
             "timestamp": dt.isoformat(),
+            "timestamp_ms": ts_ms,
             "timestamp_local": label_time,
-            "best_price": r.best_price,
-            "avg_top5_price": r.avg_top5_price,
-            "min_limit": r.min_limit,
-            "max_limit": r.max_limit,
-            "payment_methods": json.loads(r.payment_methods) if isinstance(r.payment_methods, str) else r.payment_methods,
-            "merchant_name": r.merchant_name,
-        })
-    return result
+            "hour_local": local_dt.hour,
+            "buy_price": r.best_price if r.trade_type == "BUY" else None,
+            "buy_avg_top5": r.avg_top5_price if r.trade_type == "BUY" else None,
+            "buy_merchant": r.merchant_name if r.trade_type == "BUY" else None,
+            "buy_payment_methods": methods if r.trade_type == "BUY" else [],
+            "sell_price": r.best_price if r.trade_type == "SELL" else None,
+            "sell_avg_top5": r.avg_top5_price if r.trade_type == "SELL" else None,
+            "sell_merchant": r.merchant_name if r.trade_type == "SELL" else None,
+            "sell_payment_methods": methods if r.trade_type == "SELL" else [],
+            "spread": None,
+        }
+        paired_cycles.append(cycle)
+
+    for c in paired_cycles:
+        if c["buy_price"] is not None and c["sell_price"] is not None:
+            c["spread"] = round(c["sell_price"] - c["buy_price"], 4)
+
+    return _downsample_list(paired_cycles, max_points=320)
 
 
 @app.get("/api/v1/alerts")
@@ -250,11 +437,29 @@ def get_smart_targets(fiat: str, asset: str = "USDT", db: Session = Depends(get_
 
 
 @app.put("/api/v1/config/rules/{fiat}")
-def upsert_rule(fiat: str, rule: FiatRuleUpdate):
+def upsert_rule(fiat: str, rule: FiatRuleUpdate, db: Session = Depends(get_db)):
     if rule.buy_target >= rule.sell_target:
         raise HTTPException(status_code=400, detail="buy_target debe ser menor que sell_target.")
-    FIAT_RULES[fiat.upper()] = rule.model_dump()
-    return {"fiat": fiat.upper(), "rule": FIAT_RULES[fiat.upper()]}
+    fiat_code = fiat.upper()
+    rule_dict = rule.model_dump()
+    FIAT_RULES[fiat_code] = rule_dict
+
+    cfg = db.query(UserConfig).filter(UserConfig.fiat == fiat_code).first()
+    if cfg is None:
+        cfg = UserConfig(fiat=fiat_code)
+        db.add(cfg)
+
+    cfg.asset = rule.asset.upper()
+    cfg.budget = float(rule.budget)
+    cfg.pay_types = json.dumps(rule.pay_types or [])
+    cfg.buy_target = float(rule.buy_target)
+    cfg.sell_target = float(rule.sell_target)
+    cfg.only_verified_merchants = bool(rule.only_verified_merchants)
+    cfg.enabled = bool(rule.enabled)
+    cfg.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return {"fiat": fiat_code, "rule": FIAT_RULES[fiat_code], "persisted": True}
 
 
 @app.post("/api/v1/monitor/run")
@@ -285,9 +490,20 @@ def get_report_settings():
 
 
 @app.put("/api/v1/config/report-settings")
-def update_report_settings(interval_minutes: int = Query(..., ge=5, le=1440), enabled: bool = Query(True)):
+def update_report_settings(
+    interval_minutes: int = Query(..., ge=5, le=1440),
+    enabled: bool = Query(True),
+    db: Session = Depends(get_db),
+):
     settings.REPORT_INTERVAL_MINUTES = interval_minutes
     settings.ENABLE_PERIODIC_REPORTS = enabled
+
+    cfg = db.query(UserConfig).filter(UserConfig.fiat == "NIO").first()
+    if cfg:
+        cfg.report_interval_minutes = interval_minutes
+        cfg.enable_periodic_reports = enabled
+        cfg.updated_at = datetime.now(timezone.utc)
+        db.commit()
 
     if scheduler.get_job("periodic_report_job"):
         scheduler.remove_job("periodic_report_job")
