@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
@@ -27,6 +28,12 @@ from app.Servicies.binance import (
     fetch_p2p_market_depth,
     filter_ads_by_config,
     normalize_bank_label,
+)
+from app.Servicies.notifier import (
+    check_waha_status,
+    get_whatsapp_recipients,
+    send_email_detailed,
+    send_waha_detailed,
 )
 from app.Servicies.predictor import build_predictions, calculate_smart_targets, get_historical_averages
 from app.Servicies.report_service import dispatch_market_report, generate_market_report
@@ -520,3 +527,96 @@ def update_report_settings(
         "enabled": settings.ENABLE_PERIODIC_REPORTS,
         "status": "updated",
     }
+
+
+@app.get("/api/v1/notifications/status")
+async def get_notifications_status():
+    waha_status = await check_waha_status()
+    email_ok = bool(settings.SMTP_USER and settings.SMTP_PASSWORD and settings.ALERT_EMAIL_TO)
+    return {
+        "waha": waha_status,
+        "email": {
+            "configured": email_ok,
+            "smtp_host": settings.SMTP_HOST,
+            "smtp_port": settings.SMTP_PORT,
+            "from": settings.SMTP_USER,
+            "to": settings.ALERT_EMAIL_TO,
+            "detail": (
+                f"Listo para enviar a {settings.ALERT_EMAIL_TO}"
+                if email_ok
+                else "Falta SMTP_USER, SMTP_PASSWORD o ALERT_EMAIL_TO en .env"
+            ),
+        },
+    }
+
+
+@app.post("/api/v1/notifications/test-whatsapp")
+async def test_whatsapp_notification(
+    recipient: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    tz_ni = timezone(timedelta(hours=-6))
+    now_str = datetime.now(timezone.utc).astimezone(tz_ni).strftime("%d/%m/%Y %I:%M %p")
+    msg = (
+        f"✅ *Prueba de WhatsApp — Monitor P2P Nicaragua*\n"
+        f"⏰ {now_str} (Hora NI)\n"
+        f"Tu conexión con WAHA está funcionando correctamente para recibir alertas USDT/NIO."
+    )
+    res = await send_waha_detailed(msg, recipient_override=recipient)
+
+    log = AlertLog(
+        fiat="NIO",
+        signal_type="TEST_WHATSAPP",
+        price=0.0,
+        channels_sent="whatsapp(waha)" if res["ok"] else "failed",
+        message=(
+            f"Prueba WhatsApp enviada a {', '.join(res['recipients_sent'])} (sesión: {res['session_used']})"
+            if res["ok"]
+            else f"Error WhatsApp: {'; '.join(res['errors'])}"
+        ),
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "ok": res["ok"],
+        "session_used": res["session_used"],
+        "recipients": res["recipients_sent"] or get_whatsapp_recipients(),
+        "error": "; ".join(res["errors"]) if res["errors"] else None,
+    }
+
+
+@app.post("/api/v1/notifications/test-email")
+async def test_email_notification(db: Session = Depends(get_db)):
+    tz_ni = timezone(timedelta(hours=-6))
+    now_str = datetime.now(timezone.utc).astimezone(tz_ni).strftime("%d/%m/%Y %I:%M %p")
+    subject = f"[Monitor P2P Nicaragua] ✅ Prueba de Correo - {now_str}"
+    body_text = (
+        f"Prueba exitosa del sistema Monitor P2P Nicaragua.\n"
+        f"Fecha y hora (Nicaragua): {now_str}\n"
+        f"Tu canal SMTP está configurado correctamente para recibir alertas y reportes."
+    )
+    body_html = f"""
+    <div style="font-family:Arial,sans-serif;background:#0b0f19;color:#f1f5f9;padding:20px;border-radius:10px;">
+      <h2 style="color:#10b981;margin-top:0;">✅ Prueba de Correo Exitosa</h2>
+      <p>Tu sistema <b>Monitor P2P Nicaragua (USDT/NIO)</b> está enviando correos correctamente.</p>
+      <p style="color:#94a3b8;font-size:12px;">Hora Nicaragua: {now_str}</p>
+    </div>
+    """
+    res = await asyncio.to_thread(send_email_detailed, subject, body_text, body_html)
+
+    log = AlertLog(
+        fiat="NIO",
+        signal_type="TEST_EMAIL",
+        price=0.0,
+        channels_sent="email" if res["ok"] else "failed",
+        message=(
+            f"Prueba correo enviada a {res['recipient']}"
+            if res["ok"]
+            else f"Error correo: {res['error']}"
+        ),
+    )
+    db.add(log)
+    db.commit()
+
+    return res

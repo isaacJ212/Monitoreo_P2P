@@ -36,8 +36,6 @@ services:
       - WAHA_API_KEY=${WAHA_API_KEY}
     volumes:
       - waha_data:/app/.sessions
-      - waha_sessions:/app/.sessions
 
 volumes:
   waha_data:
-  waha_sessions:

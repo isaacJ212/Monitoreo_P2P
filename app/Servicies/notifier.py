@@ -10,13 +10,14 @@ from app.Schemas.schemas import AdDetail, ArbitrageMatch, PredictionSide
 
 
 def is_in_cooldown(db: Session, fiat: str, signal_type: str) -> bool:
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.ALERT_COOLDOWN_MINUTES)
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=settings.ALERT_COOLDOWN_MINUTES)).replace(tzinfo=None)
     recent = (
         db.query(AlertLog)
         .filter(
             AlertLog.fiat == fiat.upper(),
             AlertLog.signal_type == signal_type,
             AlertLog.timestamp >= cutoff,
+            AlertLog.channels_sent != "db_only",
         )
         .first()
     )
@@ -283,56 +284,238 @@ def get_whatsapp_recipients() -> list[str]:
     return recipients
 
 
-async def _send_waha_message(text: str) -> bool:
-    """
-    Envío de mensaje WhatsApp desde Número A (Sesión WAHA) hacia Número B (Destinatario).
-    Soporta uno o varios números destinatarios por separado.
-    """
-    recipients = get_whatsapp_recipients()
-    if not (settings.WAHA_API_URL and recipients):
-        return False
-
-    session_name = settings.WAHA_SESSION or "Binance"
+def _waha_headers() -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if settings.WAHA_API_KEY:
         headers["X-Api-Key"] = settings.WAHA_API_KEY
+    return headers
 
-    target_urls = [settings.WAHA_API_URL]
-    # Soporte automático para puertos comunes (3000 y 3008) y resolución host Docker
-    if ":3008" in settings.WAHA_API_URL:
-        target_urls.append(settings.WAHA_API_URL.replace(":3008", ":3000"))
-    elif ":3000" in settings.WAHA_API_URL:
-        target_urls.append(settings.WAHA_API_URL.replace(":3000", ":3008"))
 
-    extra_urls = []
-    for u in target_urls:
-        if "localhost" in u:
-            extra_urls.append(u.replace("localhost", "waha"))
-    target_urls.extend(extra_urls)
+def _waha_base_urls() -> list[str]:
+    """Genera URLs base candidatas para conectarse a WAHA tanto en Docker como en local."""
+    raw = (settings.WAHA_API_URL or "http://waha:3000/api/sendText").strip().rstrip("/")
+    if "/api/" in raw:
+        base = raw.split("/api/", 1)[0]
+    else:
+        base = raw
 
-    any_sent = False
+    bases = [base]
+    for b in list(bases):
+        if ":3008" in b:
+            bases.append(b.replace(":3008", ":3000"))
+        elif ":3000" in b:
+            bases.append(b.replace(":3000", ":3008"))
+    for b in list(bases):
+        if "localhost" in b:
+            bases.append(b.replace("localhost", "waha"))
+        elif "://waha:" in b:
+            bases.append(b.replace("://waha:", "://localhost:"))
+
+    seen: set[str] = set()
+    unique: list[str] = []
+    for b in bases:
+        if b not in seen:
+            seen.add(b)
+            unique.append(b)
+    return unique
+
+
+async def check_waha_status() -> dict:
+    """Inspecciona la conectividad, API key y sesiones activas reales en el contenedor WAHA."""
+    recipients = get_whatsapp_recipients()
+    configured_session = settings.WAHA_SESSION or "default"
+    headers = _waha_headers()
+    bases = _waha_base_urls()
+
+    last_error = None
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        for base in bases:
+            url = f"{base}/api/sessions?all=true"
+            try:
+                res = await client.get(url, headers=headers)
+                if res.status_code in (401, 403):
+                    return {
+                        "reachable": True,
+                        "auth_ok": False,
+                        "base_url": base,
+                        "configured_session": configured_session,
+                        "sessions": [],
+                        "active_session": None,
+                        "recipients": recipients,
+                        "detail": f"Error {res.status_code}: La WAHA_API_KEY no coincide con la del contenedor WAHA.",
+                    }
+                res.raise_for_status()
+                raw_sessions = res.json() or []
+                sessions = [
+                    {
+                        "name": s.get("name", "default"),
+                        "status": s.get("status", "UNKNOWN"),
+                    }
+                    for s in raw_sessions
+                    if isinstance(s, dict)
+                ]
+                working = [s["name"] for s in sessions if s["status"] == "WORKING"]
+                active_session = (
+                    configured_session
+                    if configured_session in working
+                    else (working[0] if working else None)
+                )
+
+                if not recipients:
+                    detail = "Falta configurar WHATSAPP_RECIPIENT_NUMBER o WAHA_CHAT_ID en .env."
+                elif active_session:
+                    if active_session == configured_session:
+                        detail = f"Conectado y listo (Sesión '{active_session}' en estado WORKING)."
+                    else:
+                        detail = (
+                            f"Sesión '{configured_session}' no activa; usando sesión WORKING "
+                            f"'{active_session}' detectada en WAHA."
+                        )
+                elif sessions:
+                    st_str = ", ".join(f"{s['name']}: {s['status']}" for s in sessions)
+                    detail = f"WAHA responde, pero ninguna sesión está WORKING ({st_str}). Escanea el QR en :3000."
+                else:
+                    detail = "WAHA está en línea, pero aún no hay sesiones iniciadas. Crea/escanea el QR en :3000."
+
+                return {
+                    "reachable": True,
+                    "auth_ok": True,
+                    "base_url": base,
+                    "configured_session": configured_session,
+                    "sessions": sessions,
+                    "active_session": active_session,
+                    "recipients": recipients,
+                    "detail": detail,
+                }
+            except Exception as exc:
+                last_error = f"{base}: {exc}"
+
+    return {
+        "reachable": False,
+        "auth_ok": False,
+        "base_url": bases[0] if bases else None,
+        "configured_session": configured_session,
+        "sessions": [],
+        "active_session": None,
+        "recipients": recipients,
+        "detail": f"No se pudo conectar con WAHA ({last_error or 'sin respuesta'}).",
+    }
+
+
+async def send_waha_detailed(text: str, recipient_override: str | None = None) -> dict:
+    """
+    Envío detallado de mensaje WhatsApp vía WAHA.
+    Detecta automáticamente si la sesión configurada no existe (ej. WAHA Core que solo usa 'default')
+    y retorna detalle exacto de éxito o fallo.
+    """
+    if recipient_override and recipient_override.strip():
+        cleaned = recipient_override.strip().replace("+", "").replace(" ", "").replace("-", "")
+        if not (cleaned.endswith("@c.us") or cleaned.endswith("@g.us")):
+            cleaned = f"{cleaned}@c.us"
+        recipients = [cleaned]
+    else:
+        recipients = get_whatsapp_recipients()
+
+    if not recipients:
+        return {
+            "ok": False,
+            "channel": "whatsapp(waha)",
+            "session_used": None,
+            "recipients_sent": [],
+            "errors": ["No hay número destinatario configurado (WHATSAPP_RECIPIENT_NUMBER / WAHA_CHAT_ID)."],
+        }
+
+    configured_session = settings.WAHA_SESSION or "default"
+    headers = _waha_headers()
+    bases = _waha_base_urls()
+
+    # Consultar sesiones activas para elegir la sesión correcta si 'Binance' no existe (ej. WAHA Core -> 'default')
+    session_candidates = [configured_session]
+    active_base = None
+    try:
+        status_info = await check_waha_status()
+        if status_info.get("reachable"):
+            active_base = status_info.get("base_url")
+            if not status_info.get("auth_ok"):
+                return {
+                    "ok": False,
+                    "channel": "whatsapp(waha)",
+                    "session_used": None,
+                    "recipients_sent": [],
+                    "errors": [status_info.get("detail") or "Error de autenticación WAHA_API_KEY."],
+                }
+            act = status_info.get("active_session")
+            if act and act not in session_candidates:
+                session_candidates.insert(0, act)
+            elif act == configured_session:
+                session_candidates = [configured_session]
+            if "default" not in session_candidates:
+                session_candidates.append("default")
+    except Exception:
+        pass
+
+    ordered_bases = [active_base] + [b for b in bases if b != active_base] if active_base else bases
+    recipients_sent: list[str] = []
+    errors: list[str] = []
+    session_used: str | None = None
+
     async with httpx.AsyncClient(timeout=15.0) as client:
         for recipient in recipients:
-            payload = {
-                "session": session_name,
-                "chatId": recipient,
-                "text": text,
-            }
             sent_this = False
-            last_exc = None
-            for u in target_urls:
-                try:
-                    res = await client.post(u, json=payload, headers=headers)
-                    res.raise_for_status()
-                    sent_this = True
-                    any_sent = True
+            last_err = None
+            for base in ordered_bases:
+                send_url = f"{base}/api/sendText"
+                for sess in session_candidates:
+                    payload = {"session": sess, "chatId": recipient, "text": text}
+                    try:
+                        res = await client.post(send_url, json=payload, headers=headers)
+                        if res.status_code >= 400:
+                            body_txt = res.text[:250]
+                            last_err = f"HTTP {res.status_code} ({send_url}, sesión '{sess}'): {body_txt}"
+                            # Si es 401/403 no tiene sentido probar otras sesiones en el mismo host
+                            if res.status_code in (401, 403):
+                                break
+                            continue
+                        sent_this = True
+                        session_used = sess
+                        recipients_sent.append(recipient)
+                        break
+                    except Exception as exc:
+                        last_err = f"{send_url}: {exc}"
+                if sent_this:
                     break
-                except Exception as e:
-                    last_exc = e
-            if not sent_this and last_exc:
-                print(f"⚠️ [WAHA] Error enviando mensaje a {recipient}: {last_exc}")
+            if not sent_this and last_err:
+                errors.append(f"{recipient}: {last_err}")
+                print(f"⚠️ [WAHA] Error enviando mensaje a {recipient}: {last_err}")
 
-    return any_sent
+    return {
+        "ok": len(recipients_sent) > 0,
+        "channel": "whatsapp(waha)",
+        "session_used": session_used,
+        "recipients_sent": recipients_sent,
+        "errors": errors,
+    }
+
+
+async def _send_waha_message(text: str) -> bool:
+    """Envío de mensaje WhatsApp desde WAHA hacia destinatarios configurados."""
+    res = await send_waha_detailed(text)
+    return bool(res.get("ok"))
+
+
+def send_email_detailed(subject: str, body_text: str, body_html: str | None = None) -> dict:
+    """Envía un correo SMTP y retorna resultado detallado."""
+    if not (settings.SMTP_USER and settings.SMTP_PASSWORD and settings.ALERT_EMAIL_TO):
+        return {
+            "ok": False,
+            "recipient": settings.ALERT_EMAIL_TO or "",
+            "error": "Faltan SMTP_USER, SMTP_PASSWORD o ALERT_EMAIL_TO en .env.",
+        }
+    try:
+        _send_email_sync(subject, body_text, body_html)
+        return {"ok": True, "recipient": settings.ALERT_EMAIL_TO, "error": None}
+    except Exception as exc:
+        return {"ok": False, "recipient": settings.ALERT_EMAIL_TO, "error": str(exc)}
 
 
 async def _send_twilio_message(from_number: str, to_number: str, body: str) -> bool:

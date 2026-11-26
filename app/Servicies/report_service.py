@@ -5,7 +5,7 @@ from app.config.Config import settings
 from app.Models.models import AlertLog, MarketSnapshot
 from app.Servicies.arbitrage import compute_arbitrage_match
 from app.Servicies.binance import fetch_p2p_ads
-from app.Servicies.notifier import _send_email_sync, _send_waha_message
+from app.Servicies.notifier import _send_email_sync, send_waha_detailed
 from app.Servicies.predictor import build_predictions, get_historical_averages
 
 
@@ -239,21 +239,28 @@ async def dispatch_market_report(
     subject, body_text, body_html, body_wa = format_report_messages(report_data)
 
     sent_channels = []
+    errors = {}
 
     # 1. Enviar Email (HTML + Texto)
     try:
         ok_email = await asyncio.to_thread(_send_email_sync, subject, body_text, body_html)
         if ok_email:
             sent_channels.append("email")
+        else:
+            errors["email"] = "Credenciales SMTP o destinatario no configurados."
     except Exception as exc:
+        errors["email"] = str(exc)
         print(f"[Error Envío Informe Email] {exc}")
 
     # 2. Enviar WhatsApp vía WAHA
     try:
-        ok_wa = await _send_waha_message(body_wa)
-        if ok_wa:
+        wa_res = await send_waha_detailed(body_wa)
+        if wa_res.get("ok"):
             sent_channels.append("whatsapp(waha)")
+        elif wa_res.get("errors"):
+            errors["whatsapp"] = "; ".join(wa_res["errors"])
     except Exception as exc:
+        errors["whatsapp"] = str(exc)
         print(f"[Aviso WAHA Informe] {exc}")
 
     # Registrar en base de datos
@@ -268,8 +275,9 @@ async def dispatch_market_report(
     db.commit()
 
     return {
-        "status": "success" if sent_channels else "skipped",
+        "status": "success" if sent_channels else "failed",
         "channels": sent_channels,
+        "errors": errors,
         "report": report_data,
     }
 

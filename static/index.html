@@ -575,33 +575,58 @@
       </div>
 
       <div class="box-clean p-5 space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xl">💬</span>
-              <div>
-                <b class="text-white block">WhatsApp WAHA</b>
-                <span class="text-slate-400 text-[11px]">Envía oportunidades de compra, venta y arbitraje</span>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <!-- Tarjeta WhatsApp WAHA con estado real y botón de prueba -->
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">💬</span>
+                <div>
+                  <b class="text-white block text-sm">WhatsApp (WAHA)</b>
+                  <span class="text-slate-400 text-[11px]" id="label-waha-dest">Destino: --</span>
+                </div>
               </div>
+              <span id="waha-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">Verificando...</span>
             </div>
-            <span class="text-emerald-400 font-bold text-[11px]">Configurado</span>
+            <p class="text-[11px] text-slate-400 bg-slate-900/70 p-2 rounded border border-slate-800/80" id="waha-status-detail">
+              Comprobando conexión con el contenedor WAHA...
+            </p>
+            <div class="flex items-center justify-between gap-2">
+              <button type="button" onclick="obtenerEstadoCanales()" class="text-[11px] text-sky-400 hover:underline font-semibold">↻ Verificar estado</button>
+              <button type="button" onclick="probarWhatsApp()" id="btn-test-waha" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95">
+                <span>💬 Probar WhatsApp</span>
+              </button>
+            </div>
           </div>
-          <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="text-xl">✉️</span>
-              <div>
-                <b class="text-white block">Correo Electrónico (Gmail)</b>
-                <span class="text-slate-400 text-[11px]" id="label-email-dest">--</span>
+
+          <!-- Tarjeta Correo SMTP con estado real y botón de prueba -->
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">✉️</span>
+                <div>
+                  <b class="text-white block text-sm">Correo Electrónico (SMTP)</b>
+                  <span class="text-slate-400 text-[11px]" id="label-email-dest">--</span>
+                </div>
               </div>
+              <span id="email-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">Verificando...</span>
             </div>
-            <span class="text-emerald-400 font-bold text-[11px]">Conectado</span>
+            <p class="text-[11px] text-slate-400 bg-slate-900/70 p-2 rounded border border-slate-800/80" id="email-status-detail">
+              Comprobando configuración SMTP...
+            </p>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] text-slate-500">Envía correo de prueba al instante</span>
+              <button type="button" onclick="probarCorreo()" id="btn-test-email" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition active:scale-95">
+                <span>✉️ Probar Correo</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="bg-slate-950 p-4 rounded-xl border border-purple-900/40 space-y-3">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
             <div>
-              <b class="text-sm font-bold text-purple-300 flex items-center gap-1.5"><span>📊</span> Informes Detallados del Mercado</b>
+              <b class="text-sm font-bold text-purple-300 flex items-center gap-1.5"><span>📊</span> Informes Detallados del Mercado (Correo + WhatsApp)</b>
               <p class="text-[11px] text-slate-400">Resúmenes periódicos con precios en vivo, predicciones y top 3 jugadas</p>
             </div>
             <div class="flex items-center gap-2">
@@ -611,12 +636,12 @@
                 <option value="0">Desactivado</option>
               </select>
               <button onclick="enviarInformeAhora()" id="btn-send-report" class="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition shadow active:scale-95">
-                <span>✉️ Enviar Ahora</span>
+                <span>📤 Enviar Informe Ahora</span>
               </button>
             </div>
           </div>
 
-          <p id="msg-report-status" class="hidden text-xs font-bold text-emerald-400 bg-emerald-950/60 p-2 rounded border border-emerald-800 text-center"></p>
+          <p id="msg-report-status" class="hidden text-xs font-bold text-emerald-400 bg-emerald-950/60 p-2.5 rounded border border-emerald-800 text-center"></p>
         </div>
 
         <div>
@@ -882,7 +907,8 @@
         obtenerPredicciones(),
         obtenerHistorial(),
         obtenerAlertas(),
-        obtenerConfiguracionInforme()
+        obtenerConfiguracionInforme(),
+        obtenerEstadoCanales()
       ]);
       document.getElementById('label-last-scan').innerText = `Última actualización: ${formatNiTime(Date.now())}`;
     }
@@ -2065,14 +2091,116 @@
         const res = await fetch(`${API}/reports/send-now?budget=${capital}`, { method: 'POST' });
         if (!res.ok) throw new Error();
         const data = await res.json();
-        const channels = (data.channels || []).join(' y ');
-        mostrarAvisoReporte(`✓ ¡Informe enviado (${channels || 'enviado'})!`);
+        const channels = data.channels || [];
+        const errs = data.errors || {};
+        const errList = Object.entries(errs).map(([k, v]) => `${k}: ${v}`).join(' | ');
+
+        if (channels.length > 0 && !errList) {
+          mostrarAvisoReporte(`✓ ¡Informe enviado por ${channels.join(' y ')}!`);
+        } else if (channels.length > 0 && errList) {
+          mostrarAvisoReporte(`⚠️ Enviado por ${channels.join(', ')}, pero falló: ${errList}`, true);
+        } else {
+          mostrarAvisoReporte(`❌ No se pudo enviar por ningún canal (${errList || 'revisa .env y WAHA'}).`, true);
+        }
         await obtenerAlertas();
       } catch (e) {
-        mostrarAvisoReporte('Error al conectar con el servidor de correo.', true);
+        mostrarAvisoReporte('Error al conectar con el servidor.', true);
       } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
+      }
+    }
+
+    async function obtenerEstadoCanales() {
+      try {
+        const res = await fetch(`${API}/notifications/status`);
+        if (!res.ok) return;
+        const d = await res.json();
+
+        // WhatsApp WAHA
+        const w = d.waha || {};
+        const wBadge = document.getElementById('waha-status-badge');
+        const wDetail = document.getElementById('waha-status-detail');
+        const wDest = document.getElementById('label-waha-dest');
+        const recips = (w.recipients || []).join(', ');
+        wDest.innerText = recips ? `Destino: ${recips}` : 'Sin número receptor configurado';
+        wDetail.innerText = w.detail || 'Sin información';
+
+        if (w.reachable && w.auth_ok && w.active_session && (w.recipients || []).length > 0) {
+          wBadge.innerText = `🟢 Listo (${w.active_session})`;
+          wBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700 whitespace-nowrap';
+        } else if (w.reachable && !w.auth_ok) {
+          wBadge.innerText = '🔴 API Key Inválida';
+          wBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-700 whitespace-nowrap';
+        } else if (w.reachable) {
+          wBadge.innerText = '🟡 Falta QR / Sesión';
+          wBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-700 whitespace-nowrap';
+        } else {
+          wBadge.innerText = '🔴 Sin Conexión';
+          wBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-700 whitespace-nowrap';
+        }
+
+        // Correo SMTP
+        const em = d.email || {};
+        const eBadge = document.getElementById('email-status-badge');
+        const eDetail = document.getElementById('email-status-detail');
+        const eDest = document.getElementById('label-email-dest');
+        if (em.to) eDest.innerText = `Para: ${em.to}`;
+        eDetail.innerText = em.detail || '--';
+
+        if (em.configured) {
+          eBadge.innerText = '🟢 Configurado';
+          eBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700 whitespace-nowrap';
+        } else {
+          eBadge.innerText = '🔴 Incompleto';
+          eBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-700 whitespace-nowrap';
+        }
+      } catch (e) {
+        console.error('Error estado canales:', e);
+      }
+    }
+
+    async function probarWhatsApp() {
+      const btn = document.getElementById('btn-test-waha');
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Probando...';
+      try {
+        const res = await fetch(`${API}/notifications/test-whatsapp`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          mostrarAvisoReporte(`✅ WhatsApp enviado correctamente a ${(data.recipients || []).join(', ')} (sesión: ${data.session_used})`);
+        } else {
+          mostrarAvisoReporte(`❌ Error WhatsApp WAHA: ${data.error || 'No se pudo enviar'}`, true);
+        }
+        await Promise.all([obtenerEstadoCanales(), obtenerAlertas()]);
+      } catch (e) {
+        mostrarAvisoReporte('❌ No se pudo contactar el servidor para probar WhatsApp.', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+
+    async function probarCorreo() {
+      const btn = document.getElementById('btn-test-email');
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin inline-block">⏳</span> Enviando...';
+      try {
+        const res = await fetch(`${API}/notifications/test-email`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          mostrarAvisoReporte(`✅ Correo de prueba enviado correctamente a ${data.recipient}`);
+        } else {
+          mostrarAvisoReporte(`❌ Error Correo SMTP: ${data.error || 'No se pudo enviar'}`, true);
+        }
+        await obtenerAlertas();
+      } catch (e) {
+        mostrarAvisoReporte('❌ No se pudo contactar el servidor para probar correo.', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
       }
     }
 
@@ -2080,10 +2208,10 @@
       const el = document.getElementById('msg-report-status');
       el.innerText = msg;
       el.className = isError
-        ? 'text-xs font-bold text-rose-400 bg-rose-950/60 p-2 rounded border border-rose-800 text-center block'
-        : 'text-xs font-bold text-emerald-400 bg-emerald-950/60 p-2 rounded border border-emerald-800 text-center block';
+        ? 'text-xs font-bold text-rose-300 bg-rose-950/70 p-2.5 rounded border border-rose-800 text-center block'
+        : 'text-xs font-bold text-emerald-300 bg-emerald-950/70 p-2.5 rounded border border-emerald-800 text-center block';
       el.classList.remove('hidden');
-      setTimeout(() => el.classList.add('hidden'), 6000);
+      setTimeout(() => el.classList.add('hidden'), 10000);
     }
 
     async function escanearMercado() {
